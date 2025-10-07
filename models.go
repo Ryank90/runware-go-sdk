@@ -62,7 +62,7 @@ const (
 	TaskTypePromptEnhance          = "promptEnhance"
 	TaskTypeImageCaption           = "imageCaption"
 	TaskTypeImageUpload            = "imageUpload"
-	TaskTypeUpscaleGan             = "upscaleGan"
+	TaskTypeUpscaleGan             = "imageUpscale" // API uses 'imageUpscale' not 'upscaleGan'
 	TaskTypeImageBackgroundRemoval = "imageBackgroundRemoval"
 	TaskTypeGetResponse            = "getResponse"
 )
@@ -426,6 +426,8 @@ type ImageCaptionResponse struct {
 type ErrorResponse struct {
 	Error    string `json:"error"`
 	ErrorID  string `json:"errorId,omitempty"`
+	Code     string `json:"code,omitempty"`    // Some errors use 'code' instead of 'errorId'
+	Message  string `json:"message,omitempty"` // Some errors use 'message' instead of 'error'
 	TaskUUID string `json:"taskUUID,omitempty"`
 	TaskType string `json:"taskType,omitempty"`
 }

@@ -177,8 +177,8 @@ func TestNewUpscaleGanRequest(t *testing.T) {
 
 	req := NewUpscaleGanRequest(inputImage, factor)
 
-	if req.TaskType != "upscaleGan" {
-		t.Errorf("TaskType = %v, want upscaleGan", req.TaskType)
+	if req.TaskType != "imageUpscale" {
+		t.Errorf("TaskType = %v, want imageUpscale", req.TaskType)
 	}
 
 	if req.TaskUUID == "" {

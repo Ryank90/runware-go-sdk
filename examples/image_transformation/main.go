@@ -26,22 +26,28 @@ func main() {
 
 	fmt.Println("Connected to Runware API")
 
-	// First, upload an image
-	fmt.Println("Uploading image...")
-	uploadResp, err := client.UploadImageFromURL(ctx, "https://example.com/image.jpg")
+	// First, generate a base image to transform
+	fmt.Println("Generating base image...")
+	basePrompt := "a simple portrait of a cat, photograph, neutral background"
+	baseResp, err := client.TextToImage(ctx, basePrompt, "runware:101@1", 512, 512)
 	if err != nil {
-		log.Fatalf("Failed to upload image: %v", err)
+		log.Fatalf("Failed to generate base image: %v", err)
 	}
 
-	fmt.Printf("Image uploaded with UUID: %s\n", uploadResp.ImageUUID)
+	fmt.Printf("Base image generated with UUID: %s\n", baseResp.ImageUUID)
+
+	// Get image URL for transformation (seedImage requires URL, not just UUID)
+	if baseResp.ImageURL == nil {
+		log.Fatalf("No image URL returned")
+	}
 
 	// Transform the image with a prompt
-	prompt := "a watercolor painting style, soft brushstrokes, artistic interpretation"
-	model := "civitai:139562@297320"
+	prompt := "transform into a watercolor painting, artistic style"
+	model := "runware:101@1"
 	strength := 0.7
 
 	fmt.Println("Transforming image...")
-	response, err := client.ImageToImage(ctx, prompt, model, uploadResp.ImageUUID, 1024, 1024, strength)
+	response, err := client.ImageToImage(ctx, prompt, model, *baseResp.ImageURL, 512, 512, strength)
 	if err != nil {
 		log.Fatalf("Failed to transform image: %v", err)
 	}

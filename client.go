@@ -499,14 +499,15 @@ func (c *Client) PollVideoResult(
 }
 
 // ImageToImage transforms an image based on a prompt
+// seedImageURLOrUUID can be either an image URL or UUID
 func (c *Client) ImageToImage(
 	ctx context.Context,
-	prompt, model, seedImage string,
+	prompt, model, seedImageURLOrUUID string,
 	width, height int,
 	strength float64,
 ) (*ImageInferenceResponse, error) {
 	req := NewImageInferenceRequest(prompt, model, width, height)
-	req.SeedImage = &seedImage
+	req.SeedImage = &seedImageURLOrUUID
 	req.Strength = &strength
 	return c.ImageInference(ctx, req)
 }

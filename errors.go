@@ -46,9 +46,20 @@ func (e *APIError) Error() string {
 
 // NewAPIError creates a new APIError from an ErrorResponse
 func NewAPIError(errResp *ErrorResponse) *APIError {
+	// Handle different error response formats
+	message := errResp.Error
+	if message == "" && errResp.Message != "" {
+		message = errResp.Message
+	}
+
+	errorID := errResp.ErrorID
+	if errorID == "" && errResp.Code != "" {
+		errorID = errResp.Code
+	}
+
 	return &APIError{
-		Message:  errResp.Error,
-		ErrorID:  errResp.ErrorID,
+		Message:  message,
+		ErrorID:  errorID,
 		TaskUUID: errResp.TaskUUID,
 		TaskType: errResp.TaskType,
 	}

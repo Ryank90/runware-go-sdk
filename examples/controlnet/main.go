@@ -26,23 +26,29 @@ func main() {
 
 	fmt.Println("Connected to Runware API")
 
-	// Upload a guide image for ControlNet
-	fmt.Println("Uploading guide image...")
-	uploadResp, err := client.UploadImageFromURL(ctx, "https://example.com/pose.jpg")
+	// Generate a base image to use as ControlNet guide
+	fmt.Println("Generating guide image...")
+	guidePrompt := "a simple stick figure pose, line art, white background"
+	guideResp, err := client.TextToImage(ctx, guidePrompt, "runware:101@1", 512, 512)
 	if err != nil {
-		log.Fatalf("Failed to upload guide image: %v", err)
+		log.Fatalf("Failed to generate guide image: %v", err)
 	}
 
-	fmt.Printf("Guide image uploaded with UUID: %s\n", uploadResp.ImageUUID)
+	fmt.Printf("Guide image generated with UUID: %s\n", guideResp.ImageUUID)
+
+	// Get image URL for ControlNet (guide image requires URL)
+	if guideResp.ImageURL == nil {
+		log.Fatalf("No image URL returned")
+	}
 
 	// Generate image with ControlNet
 	request := runware.NewRequestBuilder(
 		"a photorealistic portrait of a young woman, professional lighting, high detail",
 		"runware:101@1",
-		1024,
-		1024,
+		512,
+		512,
 	).
-		WithControlNet("runware:25@1", uploadResp.ImageUUID, 0.8).
+		WithControlNet("runware:25@1", *guideResp.ImageURL, 0.8).
 		WithSteps(40).
 		WithCFGScale(7.5).
 		WithIncludeCost(true).
