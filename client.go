@@ -35,7 +35,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		APIKey:         "",
 		WSConfig:       DefaultWSConfig(),
-		RequestTimeout: 60 * time.Second,
+		RequestTimeout: 120 * time.Second, // Generous timeout for image/video generation
 	}
 }
 

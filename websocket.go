@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -189,9 +188,9 @@ func (c *wsClient) Disconnect() error {
 	select {
 	case <-done:
 		// Goroutines finished
-	case <-time.After(2 * time.Second):
-		// Timeout waiting for goroutines
-		log.Println("Warning: Timeout waiting for WebSocket goroutines to finish")
+	case <-time.After(5 * time.Second):
+		// Goroutines didn't finish in time, but we can proceed
+		// This is not critical as connection is already closed
 	}
 
 	// Close the connection
