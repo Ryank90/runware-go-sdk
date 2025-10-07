@@ -2,7 +2,9 @@ package runware
 
 import (
 	"errors"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestErrorConstants(t *testing.T) {
@@ -134,4 +136,226 @@ func TestAPIErrorWrapping(t *testing.T) {
 	if !errors.Is(wrappedErr, wrappedErr) {
 		t.Error("Error wrapping failed")
 	}
+}
+
+func TestAPIErrorEnhanced(t *testing.T) {
+	tests := []struct {
+		name     string
+		errResp  *ErrorResponse
+		contains []string
+	}{
+		{
+			name: "full error details",
+			errResp: &ErrorResponse{
+				Error:    "unsupported dimensions",
+				ErrorID:  "ERR001",
+				TaskUUID: "task-123",
+				TaskType: "imageInference",
+			},
+			contains: []string{
+				"Task: imageInference",
+				"Code: ERR001",
+				"Message: unsupported dimensions",
+				"TaskUUID: task-123",
+			},
+		},
+		{
+			name: "empty message shows raw response",
+			errResp: &ErrorResponse{
+				Error:    "",
+				ErrorID:  "ERR002",
+				TaskUUID: "task-456",
+				TaskType: "videoInference",
+			},
+			contains: []string{
+				"empty error message from API",
+				"Raw Response:",
+				"ERR002",
+			},
+		},
+		{
+			name: "alternative error format (code and message fields)",
+			errResp: &ErrorResponse{
+				Message:  "rate limit exceeded",
+				Code:     "RATE_LIMIT",
+				TaskUUID: "task-789",
+				TaskType: "imageInference",
+			},
+			contains: []string{
+				"Code: RATE_LIMIT",
+				"Message: rate limit exceeded",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			apiErr := NewAPIError(tt.errResp)
+			errStr := apiErr.Error()
+
+			for _, expected := range tt.contains {
+				if !strings.Contains(errStr, expected) {
+					t.Errorf("Error string missing expected content.\nExpected to contain: %s\nGot: %s",
+						expected, errStr)
+				}
+			}
+
+			// Verify raw response is captured
+			if apiErr.RawResponse == "" {
+				t.Error("RawResponse should be populated")
+			}
+
+			// Verify timestamp is set
+			if apiErr.Timestamp.IsZero() {
+				t.Error("Timestamp should be set")
+			}
+		})
+	}
+}
+
+func TestAPIErrorIsRetryable(t *testing.T) {
+	tests := []struct {
+		name      string
+		errorID   string
+		retryable bool
+	}{
+		{
+			name:      "rate limit error is retryable",
+			errorID:   "rateLimitExceeded",
+			retryable: true,
+		},
+		{
+			name:      "service unavailable is retryable",
+			errorID:   "serviceUnavailable",
+			retryable: true,
+		},
+		{
+			name:      "timeout is retryable",
+			errorID:   "timeout",
+			retryable: true,
+		},
+		{
+			name:      "validation error is not retryable",
+			errorID:   "invalidParameter",
+			retryable: false,
+		},
+		{
+			name:      "auth error is not retryable",
+			errorID:   "authenticationFailed",
+			retryable: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			apiErr := &APIError{
+				ErrorID: tt.errorID,
+			}
+
+			if got := apiErr.IsRetryable(); got != tt.retryable {
+				t.Errorf("IsRetryable() = %v, want %v", got, tt.retryable)
+			}
+		})
+	}
+}
+
+func TestTimeoutError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      *TimeoutError
+		contains []string
+	}{
+		{
+			name: "single result timeout",
+			err: &TimeoutError{
+				TaskType:      "imageInference",
+				TaskUUID:      "task-123",
+				Duration:      2 * time.Minute,
+				ExpectedCount: 1,
+				ReceivedCount: 0,
+			},
+			contains: []string{
+				"2m0s",
+				"imageInference",
+				"task-123",
+				"no response received",
+			},
+		},
+		{
+			name: "multiple results partial timeout",
+			err: &TimeoutError{
+				TaskType:      "imageInference",
+				TaskUUID:      "task-456",
+				Duration:      90 * time.Second,
+				ExpectedCount: 4,
+				ReceivedCount: 2,
+			},
+			contains: []string{
+				"1m30s",
+				"imageInference",
+				"task-456",
+				"received 2/4 results",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errStr := tt.err.Error()
+
+			for _, expected := range tt.contains {
+				if !strings.Contains(errStr, expected) {
+					t.Errorf("Error string missing expected content.\nExpected to contain: %s\nGot: %s",
+						expected, errStr)
+				}
+			}
+		})
+	}
+}
+
+func TestIsTimeout(t *testing.T) {
+	tests := []struct {
+		name      string
+		err       error
+		isTimeout bool
+	}{
+		{
+			name:      "TimeoutError is timeout",
+			err:       &TimeoutError{TaskType: "test"},
+			isTimeout: true,
+		},
+		{
+			name:      "ErrTimeout is timeout",
+			err:       ErrTimeout,
+			isTimeout: true,
+		},
+		{
+			name:      "APIError is not timeout",
+			err:       &APIError{},
+			isTimeout: false,
+		},
+		{
+			name:      "nil is not timeout",
+			err:       nil,
+			isTimeout: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsTimeout(tt.err); got != tt.isTimeout {
+				t.Errorf("IsTimeout() = %v, want %v", got, tt.isTimeout)
+			}
+		})
+	}
+}
+
+func TestDebugLogger(t *testing.T) {
+	// Test default logger (no-op)
+	defaultLog := &defaultLogger{}
+	defaultLog.Printf("test message") // Should not panic
+
+	// Test std logger
+	stdLog := &stdLogger{}
+	stdLog.Printf("test message %s", "arg") // Should not panic
 }

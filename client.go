@@ -5,10 +5,28 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
 )
+
+// DebugLogger is an interface for debug logging
+type DebugLogger interface {
+	Printf(format string, v ...interface{})
+}
+
+// defaultLogger is a no-op logger
+type defaultLogger struct{}
+
+func (d *defaultLogger) Printf(format string, v ...interface{}) {}
+
+// stdLogger wraps standard log package
+type stdLogger struct{}
+
+func (s *stdLogger) Printf(format string, v ...interface{}) {
+	log.Printf("[Runware SDK] "+format, v...)
+}
 
 // Client is the main Runware SDK client
 type Client struct {
@@ -16,6 +34,7 @@ type Client struct {
 	apiKey         string
 	config         *Config
 	requestTimeout time.Duration
+	debugLogger    DebugLogger
 }
 
 // Config contains client configuration options
@@ -28,14 +47,24 @@ type Config struct {
 
 	// RequestTimeout is the default timeout for API requests
 	RequestTimeout time.Duration
+
+	// EnableDebugLogging enables detailed debug logs (useful for troubleshooting)
+	EnableDebugLogging bool
+
+	// DebugLogger is a custom logger for debug output (optional)
+	DebugLogger DebugLogger
 }
 
 // DefaultConfig returns a default client configuration
 func DefaultConfig() *Config {
+	// Check environment variable for debug mode
+	debugEnabled := os.Getenv("RUNWARE_DEBUG") == "true" || os.Getenv("RUNWARE_DEBUG") == "1"
+
 	return &Config{
-		APIKey:         "",
-		WSConfig:       DefaultWSConfig(),
-		RequestTimeout: 120 * time.Second, // Generous timeout for image/video generation
+		APIKey:             "",
+		WSConfig:           DefaultWSConfig(),
+		RequestTimeout:     120 * time.Second, // Generous timeout for image/video generation
+		EnableDebugLogging: debugEnabled,
 	}
 }
 
@@ -54,11 +83,24 @@ func NewClient(config *Config) (*Client, error) {
 		return nil, ErrInvalidAPIKey
 	}
 
+	// Initialize debug logger
+	var debugLogger DebugLogger
+	if config.EnableDebugLogging {
+		if config.DebugLogger != nil {
+			debugLogger = config.DebugLogger
+		} else {
+			debugLogger = &stdLogger{}
+		}
+	} else {
+		debugLogger = &defaultLogger{}
+	}
+
 	client := &Client{
 		apiKey:         config.APIKey,
 		config:         config,
 		requestTimeout: config.RequestTimeout,
-		ws:             newWSClient(config.APIKey, config.WSConfig),
+		debugLogger:    debugLogger,
+		ws:             newWSClient(config.APIKey, config.WSConfig, debugLogger),
 	}
 
 	return client, nil
@@ -296,12 +338,28 @@ func (c *Client) sendRequest(ctx context.Context, req interface{}) (interface{},
 
 	handler := c.createResponseHandler(expectedCount, respChan, errChan)
 
+	// Extract task info for error reporting
+	reqJSON, _ := json.Marshal(req)
+	var reqData map[string]interface{}
+	var taskUUID, taskType string
+	if json.Unmarshal(reqJSON, &reqData) == nil {
+		if uuid, ok := reqData["taskUUID"].(string); ok {
+			taskUUID = uuid
+		}
+		if tt, ok := reqData["taskType"].(string); ok {
+			taskType = tt
+		}
+	}
+
+	c.debugLogger.Printf("Submitting request: %s (TaskUUID: %s, expecting %d results)",
+		taskType, taskUUID, expectedCount)
+
 	// Send the request
 	if err := c.ws.Send(ctx, req, handler); err != nil {
 		return nil, err
 	}
 
-	return c.waitForResponse(ctx, expectedCount, respChan, errChan)
+	return c.waitForResponse(ctx, taskType, taskUUID, expectedCount, respChan, errChan)
 }
 
 // extractExpectedCount extracts the numberResults from a request
@@ -365,6 +423,7 @@ func (c *Client) createResponseHandler(
 // waitForResponse waits for the expected number of responses or timeout
 func (c *Client) waitForResponse(
 	ctx context.Context,
+	taskType, taskUUID string,
 	expectedCount int,
 	respChan chan interface{},
 	errChan chan error,
@@ -374,15 +433,32 @@ func (c *Client) waitForResponse(
 		timeout = time.Until(deadline)
 	}
 
+	startTime := time.Now()
 	timeoutTimer := time.After(timeout)
+
+	c.debugLogger.Printf("Waiting for response: %s (TaskUUID: %s, timeout: %v)",
+		taskType, taskUUID, timeout)
 
 	// For single result, return immediately
 	if expectedCount == 1 {
-		return c.waitForSingleResponse(ctx, respChan, errChan, timeoutTimer)
+		result, err := c.waitForSingleResponse(ctx, respChan, errChan, timeoutTimer)
+		if err != nil && IsTimeout(err) {
+			// Return enhanced timeout error
+			return nil, &TimeoutError{
+				TaskType:      taskType,
+				TaskUUID:      taskUUID,
+				Duration:      time.Since(startTime),
+				ExpectedCount: expectedCount,
+				ReceivedCount: 0,
+			}
+		}
+		return result, err
 	}
 
 	// For multiple results, wait for all
-	return c.waitForMultipleResponses(ctx, respChan, errChan, timeoutTimer)
+	return c.waitForMultipleResponses(
+		ctx, taskType, taskUUID, expectedCount, startTime, respChan, errChan, timeoutTimer,
+	)
 }
 
 // waitForSingleResponse waits for a single response
@@ -407,11 +483,15 @@ func (c *Client) waitForSingleResponse(
 // waitForMultipleResponses waits for multiple responses
 func (c *Client) waitForMultipleResponses(
 	ctx context.Context,
+	taskType, taskUUID string,
+	expectedCount int,
+	startTime time.Time,
 	respChan chan interface{},
 	errChan chan error,
 	timeoutTimer <-chan time.Time,
 ) (interface{}, error) {
 	var firstResp interface{}
+	receivedCount := 0
 
 	for {
 		select {
@@ -423,11 +503,21 @@ func (c *Client) waitForMultipleResponses(
 			if firstResp == nil {
 				firstResp = resp
 			}
+			receivedCount++
+			c.debugLogger.Printf("Received %d/%d results for %s (TaskUUID: %s)",
+				receivedCount, expectedCount, taskType, taskUUID)
 			if !ok {
 				return firstResp, nil
 			}
 		case <-timeoutTimer:
-			return nil, ErrTimeout
+			// Return enhanced timeout error with partial results info
+			return nil, &TimeoutError{
+				TaskType:      taskType,
+				TaskUUID:      taskUUID,
+				Duration:      time.Since(startTime),
+				ExpectedCount: expectedCount,
+				ReceivedCount: receivedCount,
+			}
 		}
 	}
 }

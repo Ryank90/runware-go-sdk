@@ -89,15 +89,20 @@ type wsClient struct {
 	handlers      map[string]ResponseHandler
 	handlersMu    sync.RWMutex
 	wg            sync.WaitGroup
+	debugLogger   DebugLogger
 }
 
 // ResponseHandler is a function that handles responses for a specific task
 type ResponseHandler func(data interface{}, err error)
 
 // newWSClient creates a new WebSocket client
-func newWSClient(apiKey string, config *WSConfig) *wsClient {
+func newWSClient(apiKey string, config *WSConfig, debugLogger DebugLogger) *wsClient {
 	if config == nil {
 		config = DefaultWSConfig()
+	}
+
+	if debugLogger == nil {
+		debugLogger = &defaultLogger{}
 	}
 
 	return &wsClient{
@@ -108,6 +113,7 @@ func newWSClient(apiKey string, config *WSConfig) *wsClient {
 		messageChan:   make(chan []byte, 100),
 		errorChan:     make(chan error, 10),
 		handlers:      make(map[string]ResponseHandler),
+		debugLogger:   debugLogger,
 	}
 }
 
@@ -119,6 +125,8 @@ func (c *wsClient) Connect(ctx context.Context) error {
 	if c.connected {
 		return ErrAlreadyConnected
 	}
+
+	c.debugLogger.Printf("Connecting to %s", c.config.URL)
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: c.config.ConnectTimeout,
@@ -134,12 +142,16 @@ func (c *wsClient) Connect(ctx context.Context) error {
 	c.conn = conn
 	c.connected = true
 
+	c.debugLogger.Printf("WebSocket connected, authenticating...")
+
 	// Send authentication
 	if err := c.authenticate(); err != nil {
 		_ = c.conn.Close()
 		c.connected = false
 		return fmt.Errorf("authentication failed: %w", err)
 	}
+
+	c.debugLogger.Printf("Authenticated successfully")
 
 	// Start background goroutines
 	c.wg.Add(3)
@@ -225,19 +237,24 @@ func (c *wsClient) Send(ctx context.Context, request interface{}, handler Respon
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Extract taskUUID directly from the request object
+	// Extract taskUUID and taskType for logging
 	reqData, _ := json.Marshal(request)
 	var taskMap map[string]interface{}
-	var taskUUID string
+	var taskUUID, taskType string
 	if err := json.Unmarshal(reqData, &taskMap); err == nil {
 		if uuid, ok := taskMap["taskUUID"].(string); ok {
 			taskUUID = uuid
+		}
+		if tt, ok := taskMap["taskType"].(string); ok {
+			taskType = tt
 		}
 	}
 
 	if taskUUID == "" {
 		return fmt.Errorf("request missing taskUUID")
 	}
+
+	c.debugLogger.Printf("Sending request: %s (TaskUUID: %s)", taskType, taskUUID)
 
 	// Register handler
 	c.handlersMu.Lock()
@@ -263,6 +280,8 @@ func (c *wsClient) Send(ctx context.Context, request interface{}, handler Respon
 	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
 		return fmt.Errorf("failed to send message: %w", err)
 	}
+
+	c.debugLogger.Printf("Request sent successfully: %s (TaskUUID: %s)", taskType, taskUUID)
 
 	return nil
 }
@@ -339,6 +358,9 @@ func (c *wsClient) handleMessage(message []byte) {
 		// Try to parse as error response
 		var errResp ErrorResponse
 		if err := json.Unmarshal(message, &errResp); err == nil {
+			c.debugLogger.Printf("Received error for %s (TaskUUID: %s): %s",
+				errResp.TaskType, errResp.TaskUUID, errResp.Error)
+
 			c.handlersMu.RLock()
 			handler, ok := c.handlers[errResp.TaskUUID]
 			c.handlersMu.RUnlock()
@@ -358,8 +380,13 @@ func (c *wsClient) handleMessage(message []byte) {
 		Errors []ErrorResponse `json:"errors"`
 	}
 	if json.Unmarshal(message, &errorsResp) == nil && len(errorsResp.Errors) > 0 {
+		c.debugLogger.Printf("Received %d errors in response", len(errorsResp.Errors))
+
 		for i := range errorsResp.Errors {
 			errResp := &errorsResp.Errors[i]
+			c.debugLogger.Printf("Error %d: %s (TaskUUID: %s): %s",
+				i+1, errResp.TaskType, errResp.TaskUUID, errResp.Error)
+
 			c.handlersMu.RLock()
 			handler, ok := c.handlers[errResp.TaskUUID]
 			c.handlersMu.RUnlock()
@@ -377,8 +404,9 @@ func (c *wsClient) handleMessage(message []byte) {
 	// Process each data item
 	for _, item := range response.Data {
 		var baseResp struct {
-			TaskUUID string `json:"taskUUID"`
-			TaskType string `json:"taskType"`
+			TaskUUID string     `json:"taskUUID"`
+			TaskType string     `json:"taskType"`
+			Status   TaskStatus `json:"status,omitempty"`
 		}
 
 		if err := json.Unmarshal(item, &baseResp); err != nil {
@@ -391,6 +419,15 @@ func (c *wsClient) handleMessage(message []byte) {
 
 		if !ok {
 			continue
+		}
+
+		// Log response reception
+		if baseResp.Status != "" {
+			c.debugLogger.Printf("Received response: %s (TaskUUID: %s, Status: %s)",
+				baseResp.TaskType, baseResp.TaskUUID, baseResp.Status)
+		} else {
+			c.debugLogger.Printf("Received response: %s (TaskUUID: %s)",
+				baseResp.TaskType, baseResp.TaskUUID)
 		}
 
 		// Parse based on task type

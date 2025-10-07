@@ -79,6 +79,45 @@ config := &runware.Config{
 client, err := runware.NewClient(config)
 ```
 
+## Error Handling & Debugging
+
+The SDK provides comprehensive error handling with detailed context for production debugging.
+
+### Enhanced Error Messages
+
+```go
+resp, err := client.TextToImage(ctx, prompt, model, width, height)
+if err != nil {
+    // Detailed error with full API context
+    // Example: "Runware API Error - Task: imageInference | Code: unsupportedDimensions | Message: ... | TaskUUID: ..."
+    fmt.Printf("Error: %v\n", err)
+    
+    // Check specific error types
+    if apiErr, ok := err.(*runware.APIError); ok {
+        if apiErr.IsRetryable() {
+            // Retry logic for transient errors
+        }
+    }
+}
+```
+
+### Debug Logging
+
+Enable detailed logging to troubleshoot issues:
+
+```bash
+# Enable debug mode
+export RUNWARE_DEBUG=1
+```
+
+Or programmatically:
+
+```go
+config := runware.DefaultConfig()
+config.EnableDebugLogging = true
+client, _ := runware.NewClient(config)
+```
+
 ## Usage Examples
 
 See the [`examples/`](./examples) directory for complete, working examples:
