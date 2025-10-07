@@ -1,0 +1,62 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Compiled Go binaries (especially in examples/)
+# Each example directory may have a binary with the same name
+examples/*/text_to_image
+examples/*/text_to_video
+examples/*/image_to_video
+examples/*/image_transformation
+examples/*/advanced_generation
+examples/*/advanced_video
+examples/*/batch_generation
+examples/*/batch_video
+examples/*/controlnet
+examples/*/utilities
+examples/*/video_with_constraints
+# Generic pattern for any other binaries in examples
+examples/*/*
+!examples/*/*.go
+!examples/*/README.md
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+build/
+
+# Example outputs
+examples/**/*.jpg
+examples/**/*.png
+examples/**/*.webp
+
