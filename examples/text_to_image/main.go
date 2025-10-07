@@ -6,9 +6,13 @@ import (
 	"log"
 
 	runware "github.com/Ryank90/runware-go-sdk"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env file if it exists (for local development)
+	_ = godotenv.Load()
+
 	// Create a new client (API key from RUNWARE_API_KEY environment variable)
 	client, err := runware.NewClient(nil)
 	if err != nil {

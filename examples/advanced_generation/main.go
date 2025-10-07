@@ -8,9 +8,13 @@ import (
 	"time"
 
 	runware "github.com/Ryank90/runware-go-sdk"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env file if it exists (for local development)
+	_ = godotenv.Load()
+
 	// Create a new client with custom configuration
 	config := runware.DefaultConfig()
 	config.APIKey = os.Getenv("RUNWARE_API_KEY") // or set directly: "your-api-key-here"

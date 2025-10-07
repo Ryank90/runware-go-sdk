@@ -7,9 +7,13 @@ import (
 	"time"
 
 	runware "github.com/Ryank90/runware-go-sdk"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env file if it exists (for local development)
+	_ = godotenv.Load()
+
 	client, err := runware.NewClient(nil)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
