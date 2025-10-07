@@ -11,6 +11,7 @@ const (
 	testPrompt = "test prompt"
 	testModel  = "runware:101@1"
 	testUUID   = "test-uuid"
+	testAPIKey = "test-api-key"
 )
 
 func TestNewClient(t *testing.T) {
@@ -247,7 +248,7 @@ func TestNewImageCaptionRequest(t *testing.T) {
 
 func TestClientIsConnected(t *testing.T) {
 	config := DefaultConfig()
-	config.APIKey = "test-api-key"
+	config.APIKey = testAPIKey
 	client, err := NewClient(config)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
@@ -260,7 +261,7 @@ func TestClientIsConnected(t *testing.T) {
 
 func TestImageInferenceWithoutConnection(t *testing.T) {
 	config := DefaultConfig()
-	config.APIKey = "test-api-key"
+	config.APIKey = testAPIKey
 	client, err := NewClient(config)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)

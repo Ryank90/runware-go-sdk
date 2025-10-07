@@ -359,13 +359,14 @@ func (c *wsClient) handleMessage(message []byte) {
 		Errors []ErrorResponse `json:"errors"`
 	}
 	if json.Unmarshal(message, &errorsResp) == nil && len(errorsResp.Errors) > 0 {
-		for _, errResp := range errorsResp.Errors {
+		for i := range errorsResp.Errors {
+			errResp := &errorsResp.Errors[i]
 			c.handlersMu.RLock()
 			handler, ok := c.handlers[errResp.TaskUUID]
 			c.handlersMu.RUnlock()
 
 			if ok {
-				handler(nil, NewAPIError(&errResp))
+				handler(nil, NewAPIError(errResp))
 				c.handlersMu.Lock()
 				delete(c.handlers, errResp.TaskUUID)
 				c.handlersMu.Unlock()

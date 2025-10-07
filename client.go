@@ -290,35 +290,54 @@ func (c *Client) sendRequest(ctx context.Context, req interface{}) (interface{},
 		return nil, ErrNotConnected
 	}
 
-	// Extract numberResults from request to know how many responses to expect
+	expectedCount := c.extractExpectedCount(req)
+	respChan := make(chan interface{}, expectedCount)
+	errChan := make(chan error, 1)
+
+	handler := c.createResponseHandler(expectedCount, respChan, errChan)
+
+	// Send the request
+	if err := c.ws.Send(ctx, req, handler); err != nil {
+		return nil, err
+	}
+
+	return c.waitForResponse(ctx, expectedCount, respChan, errChan)
+}
+
+// extractExpectedCount extracts the numberResults from a request
+func (c *Client) extractExpectedCount(req interface{}) int {
 	expectedCount := 1
+
 	if reqMap, ok := req.(interface{ GetNumberResults() *int }); ok {
 		if nr := reqMap.GetNumberResults(); nr != nil && *nr > 0 {
 			expectedCount = *nr
 		}
-	} else {
-		// Fallback: use reflection to extract numberResults
-		reqJSON, _ := json.Marshal(req)
-		var reqData map[string]interface{}
-		if json.Unmarshal(reqJSON, &reqData) == nil {
-			if nr, ok := reqData["numberResults"]; ok {
-				switch v := nr.(type) {
-				case float64:
-					expectedCount = int(v)
-				case int:
-					expectedCount = v
-				}
+		return expectedCount
+	}
+
+	// Fallback: use reflection to extract numberResults
+	reqJSON, _ := json.Marshal(req)
+	var reqData map[string]interface{}
+	if json.Unmarshal(reqJSON, &reqData) == nil {
+		if nr, ok := reqData["numberResults"]; ok {
+			switch v := nr.(type) {
+			case float64:
+				expectedCount = int(v)
+			case int:
+				expectedCount = v
 			}
 		}
 	}
 
-	// Create channels for responses
-	respChan := make(chan interface{}, expectedCount)
-	errChan := make(chan error, 1)
+	return expectedCount
+}
+
+// createResponseHandler creates a handler function for collecting responses
+func (c *Client) createResponseHandler(expectedCount int, respChan chan interface{}, errChan chan error) func(interface{}, error) {
 	var mu sync.Mutex
 	receivedCount := 0
 
-	handler := func(data interface{}, err error) {
+	return func(data interface{}, err error) {
 		mu.Lock()
 		defer mu.Unlock()
 
@@ -333,20 +352,14 @@ func (c *Client) sendRequest(ctx context.Context, req interface{}) (interface{},
 		receivedCount++
 		respChan <- data
 
-		// For single result requests, we're done after the first response
-		// For multi-result requests, we need all of them
 		if receivedCount >= expectedCount {
-			// Signal completion after receiving all expected responses
 			close(respChan)
 		}
 	}
+}
 
-	// Send the request
-	if err := c.ws.Send(ctx, req, handler); err != nil {
-		return nil, err
-	}
-
-	// Wait for response(s) with timeout
+// waitForResponse waits for the expected number of responses or timeout
+func (c *Client) waitForResponse(ctx context.Context, expectedCount int, respChan chan interface{}, errChan chan error) (interface{}, error) {
 	timeout := c.requestTimeout
 	if deadline, ok := ctx.Deadline(); ok {
 		timeout = time.Until(deadline)
@@ -356,19 +369,31 @@ func (c *Client) sendRequest(ctx context.Context, req interface{}) (interface{},
 
 	// For single result, return immediately
 	if expectedCount == 1 {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case err := <-errChan:
-			return nil, err
-		case resp := <-respChan:
-			return resp, nil
-		case <-timeoutTimer:
-			return nil, ErrTimeout
-		}
+		return c.waitForSingleResponse(ctx, respChan, errChan, timeoutTimer)
 	}
 
-	// For multiple results, collect all or timeout
+	// For multiple results, wait for all
+	return c.waitForMultipleResponses(ctx, respChan, errChan, timeoutTimer)
+}
+
+// waitForSingleResponse waits for a single response
+func (c *Client) waitForSingleResponse(ctx context.Context, respChan chan interface{}, errChan chan error, timeoutTimer <-chan time.Time) (interface{}, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case err := <-errChan:
+		return nil, err
+	case resp := <-respChan:
+		return resp, nil
+	case <-timeoutTimer:
+		return nil, ErrTimeout
+	}
+}
+
+// waitForMultipleResponses waits for multiple responses
+func (c *Client) waitForMultipleResponses(ctx context.Context, respChan chan interface{}, errChan chan error, timeoutTimer <-chan time.Time) (interface{}, error) {
+	var firstResp interface{}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -376,18 +401,12 @@ func (c *Client) sendRequest(ctx context.Context, req interface{}) (interface{},
 		case err := <-errChan:
 			return nil, err
 		case resp, ok := <-respChan:
+			if firstResp == nil {
+				firstResp = resp
+			}
 			if !ok {
-				// Channel closed, meaning we got all responses
-				// Return the first one for backwards compatibility
-				return resp, nil
+				return firstResp, nil
 			}
-			// Got a response, check if we have all of them
-			mu.Lock()
-			if receivedCount >= expectedCount {
-				mu.Unlock()
-				return resp, nil
-			}
-			mu.Unlock()
 		case <-timeoutTimer:
 			return nil, ErrTimeout
 		}
