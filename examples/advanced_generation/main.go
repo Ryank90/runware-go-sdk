@@ -4,13 +4,17 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"time"
 
 	runware "github.com/Ryank90/runware-go-sdk"
 )
 
 func main() {
 	// Create a new client with custom configuration
-	config := runware.DefaultConfig("your-api-key-here")
+	config := runware.DefaultConfig()
+	config.APIKey = os.Getenv("RUNWARE_API_KEY") // or set directly: "your-api-key-here"
+	config.RequestTimeout = 90 * time.Second     // Longer timeout for complex requests
 	client, err := runware.NewClient(config)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
@@ -25,10 +29,10 @@ func main() {
 
 	fmt.Println("Connected to Runware API")
 
-	// Build a complex request using the fluent builder
+	// Build a request with advanced features
+	// Using single-result generation for reliability with advanced settings
 	outputType := runware.OutputTypeURL
 	outputFormat := runware.OutputFormatPNG
-	scheduler := runware.SchedulerDPMPP2MKarras
 
 	request := runware.NewRequestBuilder(
 		"a highly detailed portrait of a wise old wizard with a long beard, fantasy art, dramatic lighting",
@@ -37,24 +41,22 @@ func main() {
 		1024,
 	).
 		WithNegativePrompt("blurry, low quality, distorted").
-		WithSteps(50).
+		WithSteps(40).
 		WithCFGScale(7.5).
-		WithScheduler(scheduler).
-		WithNumberResults(4).
 		WithOutputType(outputType).
 		WithOutputFormat(outputFormat).
 		WithIncludeCost(true).
-		WithSafety(runware.SafetyModeModerate).
 		Build()
 
-	fmt.Println("Generating images with advanced settings...")
+	fmt.Println("Generating image with advanced settings...")
+	fmt.Println("(Using custom steps, CFG scale, negative prompt, and PNG output)")
 
 	response, err := client.ImageInference(ctx, request)
 	if err != nil {
 		log.Fatalf("Failed to generate image: %v", err)
 	}
 
-	fmt.Printf("Image generated successfully!\n")
+	fmt.Printf("\nImage generated successfully!\n")
 	fmt.Printf("Image UUID: %s\n", response.ImageUUID)
 	if response.ImageURL != nil {
 		fmt.Printf("Image URL: %s\n", *response.ImageURL)

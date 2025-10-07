@@ -23,31 +23,36 @@ func main() {
 
 	fmt.Println("Connected to Runware API")
 
-	// Simple text-to-video generation
+	// Text-to-video generation
 	prompt := "A serene beach at sunset with gentle waves crashing on the shore"
 	model := "klingai:5@3"
 	duration := 5
 
-	fmt.Printf("Generating video: %s\n", prompt)
-	fmt.Println("This will take a few minutes...")
+	fmt.Printf("\nGenerating video...\n")
+	fmt.Printf("Prompt: %s\n", prompt)
+	fmt.Printf("Model: %s\n", model)
+	fmt.Printf("Duration: %d seconds\n\n", duration)
 
-	// Submit the video generation request
+	// Submit the video generation request (returns quickly with acknowledgment)
 	response, err := client.TextToVideo(ctx, prompt, model, duration)
 	if err != nil {
 		log.Fatalf("Failed to submit video request: %v", err)
 	}
 
-	fmt.Printf("\nVideo request submitted: %s\n", response.TaskUUID)
-	fmt.Println("Polling for result...")
+	fmt.Printf("Video request submitted successfully!\n")
+	fmt.Printf("Task UUID: %s\n\n", response.TaskUUID)
+	fmt.Println("Polling for result (this may take 2-5 minutes)...")
 
 	// Poll for the result
-	finalResp, err := client.PollVideoResult(ctx, response.TaskUUID, 60, 10*time.Second)
+	finalResp, err := client.PollVideoResult(ctx, response.TaskUUID, 120, 15*time.Second)
 	if err != nil {
 		log.Fatalf("Failed to get video result: %v", err)
 	}
 
-	fmt.Printf("\n✓ Video generated successfully!\n")
-	fmt.Printf("Video UUID: %s\n", finalResp.VideoUUID)
+	fmt.Printf("\nVideo generated successfully!\n\n")
+	if finalResp.VideoUUID != "" {
+		fmt.Printf("Video UUID: %s\n", finalResp.VideoUUID)
+	}
 	if finalResp.VideoURL != nil {
 		fmt.Printf("Video URL: %s\n", *finalResp.VideoURL)
 	}

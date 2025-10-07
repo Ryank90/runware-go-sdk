@@ -65,7 +65,7 @@ func main() {
 		log.Fatalf("Failed to get video result: %v", err)
 	}
 
-	fmt.Printf("\n✓ Video generated successfully!\n")
+	fmt.Printf("\nVideo generated successfully!\n")
 	fmt.Printf("Video UUID: %s\n", finalResp.VideoUUID)
 	if finalResp.VideoURL != nil {
 		fmt.Printf("Video URL: %s\n", *finalResp.VideoURL)
