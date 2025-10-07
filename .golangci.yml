@@ -1,5 +1,3 @@
-version: 2
-
 linters-settings:
   govet:
     enable:
@@ -64,9 +62,9 @@ issues:
     - linters:
         - lll
       source: "^//go:generate "
+  exclude-dirs:
+    - examples
+    - vendor
 
 run:
   timeout: 5m
-  skip-dirs:
-    - examples
-    - vendor
