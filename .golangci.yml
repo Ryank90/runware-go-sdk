@@ -50,11 +50,6 @@ issues:
     - path: websocket\.go
       linters:
         - gocyclo
-    - path: examples/
-      linters:
-        - errcheck
-        - gocritic
-        - gosec
     - path: client\.go
       text: "G304.*Potential file inclusion"
       linters:
@@ -63,7 +58,6 @@ issues:
         - lll
       source: "^//go:generate "
   exclude-dirs:
-    - examples
     - vendor
 
 run:
