@@ -1,52 +1,60 @@
-.PHONY: help build test test-verbose test-coverage lint fmt clean install examples
+.PHONY: help lint test build fmt vet check install-hooks clean examples
 
-help: ## Display this help message
-	@echo "Available targets:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+help: ## Show this help message
+	@echo 'Usage: make [target]'
+	@echo ''
+	@echo 'Available targets:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-build: ## Build the SDK
-	@echo "Building..."
-	@go build -v ./...
+lint: ## Run golangci-lint
+	@echo "🔍 Running golangci-lint..."
+	@golangci-lint run --timeout=5m
 
-test: ## Run tests
-	@echo "Running tests..."
-	@go test ./...
-
-test-verbose: ## Run tests with verbose output
-	@echo "Running tests (verbose)..."
-	@go test -v ./...
-
-test-coverage: ## Run tests with coverage
-	@echo "Running tests with coverage..."
-	@go test -v -cover -coverprofile=coverage.out ./...
+test: ## Run all tests
+	@echo "🧪 Running tests..."
+	@go test -v -race -coverprofile=coverage.out ./...
 	@go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report generated at coverage.html"
+	@echo "📊 Coverage report generated: coverage.html"
 
-lint: ## Run linter
-	@echo "Running linter..."
+test-short: ## Run short tests only
+	@echo "🧪 Running short tests..."
+	@go test -short ./...
+
+build: ## Build all packages
+	@echo "🔨 Building packages..."
+	@go build ./...
+
+fmt: ## Format code with gofmt
+	@echo "📝 Formatting code..."
+	@gofmt -w .
+
+vet: ## Run go vet
+	@echo "🔬 Running go vet..."
 	@go vet ./...
-	@if command -v golint > /dev/null; then golint ./...; else echo "golint not installed, skipping..."; fi
 
-fmt: ## Format code
-	@echo "Formatting code..."
-	@go fmt ./...
+check: fmt vet lint test-short ## Run all checks (fmt, vet, lint, test)
+	@echo "✅ All checks passed!"
 
-clean: ## Clean build artifacts
-	@echo "Cleaning..."
+install-hooks: ## Install git pre-commit hooks
+	@echo "🪝 Installing git hooks..."
+	@chmod +x .git/hooks/pre-commit
+	@echo "✅ Git hooks installed!"
+
+clean: ## Clean build artifacts and test cache
+	@echo "🧹 Cleaning..."
+	@go clean -cache -testcache -modcache
 	@rm -f coverage.out coverage.html
-	@go clean
-
-install: ## Install dependencies
-	@echo "Installing dependencies..."
-	@go mod download
-	@go mod tidy
+	@find examples -type f ! -name "*.go" ! -name "README.md" ! -name ".env*" -delete
+	@echo "✅ Clean complete!"
 
 examples: ## Build all examples
-	@echo "Building examples..."
+	@echo "🏗️  Building examples..."
 	@for dir in examples/*/; do \
-		echo "Building $$dir..."; \
-		(cd $$dir && go build) || exit 1; \
+		if [ -f "$$dir/main.go" ]; then \
+			echo "  Building $$dir..."; \
+			(cd "$$dir" && go build -o "$$(basename $$dir)" .) || exit 1; \
+		fi \
 	done
+	@echo "✅ All examples built!"
 
 .DEFAULT_GOAL := help
-

@@ -47,7 +47,7 @@ func TestNewClient(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clear env var for nil config test
 			if tt.config == nil {
-				os.Unsetenv("RUNWARE_API_KEY")
+				_ = os.Unsetenv("RUNWARE_API_KEY")
 			}
 
 			client, err := NewClient(tt.config)

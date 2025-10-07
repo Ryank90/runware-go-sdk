@@ -137,7 +137,7 @@ func (c *wsClient) Connect(ctx context.Context) error {
 
 	// Send authentication
 	if err := c.authenticate(); err != nil {
-		c.conn.Close()
+		_ = c.conn.Close()
 		c.connected = false
 		return fmt.Errorf("authentication failed: %w", err)
 	}
@@ -200,7 +200,7 @@ func (c *wsClient) Disconnect() error {
 
 	if c.conn != nil {
 		err := c.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-		c.conn.Close()
+		_ = c.conn.Close()
 		c.conn = nil
 		return err
 	}
@@ -498,7 +498,7 @@ func (c *wsClient) reconnectLoop(ctx context.Context) {
 
 			// Close old connection
 			if c.conn != nil {
-				c.conn.Close()
+				_ = c.conn.Close()
 				c.conn = nil
 			}
 			c.mu.Unlock()

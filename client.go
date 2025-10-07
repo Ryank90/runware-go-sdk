@@ -171,7 +171,7 @@ func (c *Client) UploadImage(ctx context.Context, req *UploadImageRequest) (*Upl
 
 // UploadImageFromFile uploads an image from a file path
 func (c *Client) UploadImageFromFile(ctx context.Context, filePath string) (*UploadImageResponse, error) {
-	data, err := os.ReadFile(filePath)
+	data, err := os.ReadFile(filePath) // #nosec G304 - file path is provided by user for upload
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
@@ -333,7 +333,11 @@ func (c *Client) extractExpectedCount(req interface{}) int {
 }
 
 // createResponseHandler creates a handler function for collecting responses
-func (c *Client) createResponseHandler(expectedCount int, respChan chan interface{}, errChan chan error) func(interface{}, error) {
+func (c *Client) createResponseHandler(
+	expectedCount int,
+	respChan chan interface{},
+	errChan chan error,
+) func(interface{}, error) {
 	var mu sync.Mutex
 	receivedCount := 0
 
@@ -359,7 +363,12 @@ func (c *Client) createResponseHandler(expectedCount int, respChan chan interfac
 }
 
 // waitForResponse waits for the expected number of responses or timeout
-func (c *Client) waitForResponse(ctx context.Context, expectedCount int, respChan chan interface{}, errChan chan error) (interface{}, error) {
+func (c *Client) waitForResponse(
+	ctx context.Context,
+	expectedCount int,
+	respChan chan interface{},
+	errChan chan error,
+) (interface{}, error) {
 	timeout := c.requestTimeout
 	if deadline, ok := ctx.Deadline(); ok {
 		timeout = time.Until(deadline)
@@ -377,7 +386,12 @@ func (c *Client) waitForResponse(ctx context.Context, expectedCount int, respCha
 }
 
 // waitForSingleResponse waits for a single response
-func (c *Client) waitForSingleResponse(ctx context.Context, respChan chan interface{}, errChan chan error, timeoutTimer <-chan time.Time) (interface{}, error) {
+func (c *Client) waitForSingleResponse(
+	ctx context.Context,
+	respChan chan interface{},
+	errChan chan error,
+	timeoutTimer <-chan time.Time,
+) (interface{}, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -391,7 +405,12 @@ func (c *Client) waitForSingleResponse(ctx context.Context, respChan chan interf
 }
 
 // waitForMultipleResponses waits for multiple responses
-func (c *Client) waitForMultipleResponses(ctx context.Context, respChan chan interface{}, errChan chan error, timeoutTimer <-chan time.Time) (interface{}, error) {
+func (c *Client) waitForMultipleResponses(
+	ctx context.Context,
+	respChan chan interface{},
+	errChan chan error,
+	timeoutTimer <-chan time.Time,
+) (interface{}, error) {
 	var firstResp interface{}
 
 	for {
