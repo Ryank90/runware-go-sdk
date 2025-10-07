@@ -64,7 +64,8 @@ func TestNewClient(t *testing.T) {
 
 func TestDefaultConfig(t *testing.T) {
 	apiKey := "test-key"
-	config := DefaultConfig(apiKey)
+	config := DefaultConfig()
+	config.APIKey = apiKey
 
 	if config.APIKey != apiKey {
 		t.Errorf("DefaultConfig().APIKey = %v, want %v", config.APIKey, apiKey)
@@ -245,7 +246,8 @@ func TestNewImageCaptionRequest(t *testing.T) {
 }
 
 func TestClientIsConnected(t *testing.T) {
-	config := DefaultConfig("test-api-key")
+	config := DefaultConfig()
+	config.APIKey = "test-api-key"
 	client, err := NewClient(config)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
@@ -257,7 +259,8 @@ func TestClientIsConnected(t *testing.T) {
 }
 
 func TestImageInferenceWithoutConnection(t *testing.T) {
-	config := DefaultConfig("test-api-key")
+	config := DefaultConfig()
+	config.APIKey = "test-api-key"
 	client, err := NewClient(config)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)

@@ -26,6 +26,7 @@ type DeliveryMethod string
 const (
 	DeliveryMethodStream DeliveryMethod = "stream"
 	DeliveryMethodPOST   DeliveryMethod = "post"
+	DeliveryMethodAsync  DeliveryMethod = "async"
 )
 
 // SafetyMode specifies the content safety check mode
@@ -438,7 +439,7 @@ type APIResponse struct {
 // NewImageInferenceRequest creates a new image inference request with required fields
 func NewImageInferenceRequest(prompt, model string, width, height int) *ImageInferenceRequest {
 	return &ImageInferenceRequest{
-		TaskType:       "imageInference",
+		TaskType:       TaskTypeImageInference,
 		TaskUUID:       uuid.New().String(),
 		PositivePrompt: prompt,
 		Model:          model,
@@ -450,7 +451,7 @@ func NewImageInferenceRequest(prompt, model string, width, height int) *ImageInf
 // NewUploadImageRequest creates a new image upload request
 func NewUploadImageRequest() *UploadImageRequest {
 	return &UploadImageRequest{
-		TaskType: "imageUpload",
+		TaskType: TaskTypeImageUpload,
 		TaskUUID: uuid.New().String(),
 	}
 }
@@ -458,7 +459,7 @@ func NewUploadImageRequest() *UploadImageRequest {
 // NewUpscaleGanRequest creates a new upscale request
 func NewUpscaleGanRequest(inputImage string, upscaleFactor int) *UpscaleGanRequest {
 	return &UpscaleGanRequest{
-		TaskType:      "upscaleGan",
+		TaskType:      TaskTypeUpscaleGan,
 		TaskUUID:      uuid.New().String(),
 		InputImage:    inputImage,
 		UpscaleFactor: upscaleFactor,
@@ -468,7 +469,7 @@ func NewUpscaleGanRequest(inputImage string, upscaleFactor int) *UpscaleGanReque
 // NewRemoveImageBackgroundRequest creates a new background removal request
 func NewRemoveImageBackgroundRequest(inputImage string) *RemoveImageBackgroundRequest {
 	return &RemoveImageBackgroundRequest{
-		TaskType:   "imageBackgroundRemoval",
+		TaskType:   TaskTypeImageBackgroundRemoval,
 		TaskUUID:   uuid.New().String(),
 		InputImage: inputImage,
 	}
@@ -477,7 +478,7 @@ func NewRemoveImageBackgroundRequest(inputImage string) *RemoveImageBackgroundRe
 // NewEnhancePromptRequest creates a new prompt enhancement request
 func NewEnhancePromptRequest(prompt string) *EnhancePromptRequest {
 	return &EnhancePromptRequest{
-		TaskType: "promptEnhance",
+		TaskType: TaskTypePromptEnhance,
 		TaskUUID: uuid.New().String(),
 		Prompt:   prompt,
 	}
@@ -486,7 +487,7 @@ func NewEnhancePromptRequest(prompt string) *EnhancePromptRequest {
 // NewImageCaptionRequest creates a new image caption request
 func NewImageCaptionRequest(inputImage string) *ImageCaptionRequest {
 	return &ImageCaptionRequest{
-		TaskType:   "imageCaption",
+		TaskType:   TaskTypeImageCaption,
 		TaskUUID:   uuid.New().String(),
 		InputImage: inputImage,
 	}
@@ -627,14 +628,17 @@ type VideoInferenceRequest struct {
 }
 
 // VideoInferenceResponse represents a response from video inference
+// Initial acknowledgment only has TaskType and TaskUUID
+// Final result includes VideoUUID, VideoURL, Status, Seed, and Cost
 type VideoInferenceResponse struct {
-	TaskType  string     `json:"taskType"`
-	TaskUUID  string     `json:"taskUUID"`
-	Status    TaskStatus `json:"status,omitempty"`
-	VideoUUID string     `json:"videoUUID,omitempty"`
-	VideoURL  *string    `json:"videoURL,omitempty"`
-	Seed      *int64     `json:"seed,omitempty"`
-	Cost      *float64   `json:"cost,omitempty"`
+	TaskType     string     `json:"taskType"`
+	TaskUUID     string     `json:"taskUUID"`
+	Status       TaskStatus `json:"status,omitempty"`
+	VideoUUID    string     `json:"videoUUID,omitempty"`
+	VideoURL     *string    `json:"videoURL,omitempty"`
+	ThumbnailURL *string    `json:"thumbnailURL,omitempty"`
+	Seed         *int64     `json:"seed,omitempty"`
+	Cost         *float64   `json:"cost,omitempty"`
 }
 
 // GetResponseRequest represents a request to get the status/result of an async task
@@ -645,20 +649,33 @@ type GetResponseRequest struct {
 
 // NewVideoInferenceRequest creates a new video inference request with required fields
 func NewVideoInferenceRequest(prompt, model string) *VideoInferenceRequest {
-	asyncMethod := DeliveryMethodPOST // Default to async for video
+	// Set default values for video generation per API docs
+	// Using 1080p 16:9 which is widely supported across models
+	width := 1920
+	height := 1080
+	fps := 30
+	numberResults := 1
+	outputType := OutputTypeURL
+	deliveryMethod := DeliveryMethodAsync // Video requires async delivery
+
 	return &VideoInferenceRequest{
-		TaskType:       "videoInference",
+		TaskType:       TaskTypeVideoInference,
 		TaskUUID:       uuid.New().String(),
 		PositivePrompt: prompt,
 		Model:          model,
-		DeliveryMethod: &asyncMethod,
+		Width:          &width,
+		Height:         &height,
+		FPS:            &fps,
+		NumberResults:  &numberResults,
+		OutputType:     &outputType,
+		DeliveryMethod: &deliveryMethod,
 	}
 }
 
-// NewGetResponseRequest creates a new get response request
+// NewGetResponseRequest creates a new GetResponse request
 func NewGetResponseRequest(taskUUID string) *GetResponseRequest {
 	return &GetResponseRequest{
-		TaskType: "getResponse",
+		TaskType: TaskTypeGetResponse,
 		TaskUUID: taskUUID,
 	}
 }

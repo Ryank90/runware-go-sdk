@@ -3,6 +3,7 @@ package runware
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -258,7 +259,9 @@ func (c *Client) CaptionImage(ctx context.Context, req *ImageCaptionRequest) (*I
 	return result.(*ImageCaptionResponse), nil
 }
 
-// VideoInference performs video inference
+// VideoInference performs video inference (async only - returns acknowledgment)
+// For video generation, this returns quickly with just the taskUUID acknowledgment.
+// Use PollVideoResult() or GetResponse() to retrieve the actual video result.
 func (c *Client) VideoInference(ctx context.Context, req *VideoInferenceRequest) (*VideoInferenceResponse, error) {
 	if req == nil {
 		return nil, ErrInvalidRequest
@@ -268,6 +271,7 @@ func (c *Client) VideoInference(ctx context.Context, req *VideoInferenceRequest)
 		req.TaskType = TaskTypeVideoInference
 	}
 
+	// Video is async-only, so this will return quickly with acknowledgment
 	result, err := c.sendRequest(ctx, req)
 	if err != nil {
 		return nil, err
@@ -286,15 +290,54 @@ func (c *Client) sendRequest(ctx context.Context, req interface{}) (interface{},
 		return nil, ErrNotConnected
 	}
 
-	// Create a channel to receive the response
-	respChan := make(chan interface{}, 1)
+	// Extract numberResults from request to know how many responses to expect
+	expectedCount := 1
+	if reqMap, ok := req.(interface{ GetNumberResults() *int }); ok {
+		if nr := reqMap.GetNumberResults(); nr != nil && *nr > 0 {
+			expectedCount = *nr
+		}
+	} else {
+		// Fallback: use reflection to extract numberResults
+		reqJSON, _ := json.Marshal(req)
+		var reqData map[string]interface{}
+		if json.Unmarshal(reqJSON, &reqData) == nil {
+			if nr, ok := reqData["numberResults"]; ok {
+				switch v := nr.(type) {
+				case float64:
+					expectedCount = int(v)
+				case int:
+					expectedCount = v
+				}
+			}
+		}
+	}
+
+	// Create channels for responses
+	respChan := make(chan interface{}, expectedCount)
 	errChan := make(chan error, 1)
+	var mu sync.Mutex
+	receivedCount := 0
 
 	handler := func(data interface{}, err error) {
+		mu.Lock()
+		defer mu.Unlock()
+
 		if err != nil {
-			errChan <- err
-		} else {
-			respChan <- data
+			select {
+			case errChan <- err:
+			default:
+			}
+			return
+		}
+
+		receivedCount++
+		respChan <- data
+
+		// For single result requests, we're done after the first response
+		// For multi-result requests, we need all of them
+		if receivedCount >= expectedCount {
+			// Signal completion after receiving all expected responses
+			close(respChan)
 		}
 	}
 
@@ -303,21 +346,51 @@ func (c *Client) sendRequest(ctx context.Context, req interface{}) (interface{},
 		return nil, err
 	}
 
-	// Wait for response with timeout
+	// Wait for response(s) with timeout
 	timeout := c.requestTimeout
 	if deadline, ok := ctx.Deadline(); ok {
 		timeout = time.Until(deadline)
 	}
 
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case err := <-errChan:
-		return nil, err
-	case resp := <-respChan:
-		return resp, nil
-	case <-time.After(timeout):
-		return nil, ErrTimeout
+	timeoutTimer := time.After(timeout)
+
+	// For single result, return immediately
+	if expectedCount == 1 {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case err := <-errChan:
+			return nil, err
+		case resp := <-respChan:
+			return resp, nil
+		case <-timeoutTimer:
+			return nil, ErrTimeout
+		}
+	}
+
+	// For multiple results, collect all or timeout
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case err := <-errChan:
+			return nil, err
+		case resp, ok := <-respChan:
+			if !ok {
+				// Channel closed, meaning we got all responses
+				// Return the first one for backwards compatibility
+				return resp, nil
+			}
+			// Got a response, check if we have all of them
+			mu.Lock()
+			if receivedCount >= expectedCount {
+				mu.Unlock()
+				return resp, nil
+			}
+			mu.Unlock()
+		case <-timeoutTimer:
+			return nil, ErrTimeout
+		}
 	}
 }
 

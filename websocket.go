@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -80,6 +81,7 @@ type wsClient struct {
 	apiKey        string
 	conn          *websocket.Conn
 	mu            sync.RWMutex
+	writeMu       sync.Mutex // Protects WebSocket writes from concurrent access
 	connected     bool
 	stopChan      chan struct{}
 	reconnectChan chan struct{}
@@ -157,24 +159,52 @@ func (c *wsClient) Connect(ctx context.Context) error {
 // Disconnect closes the WebSocket connection
 func (c *wsClient) Disconnect() error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	if !c.connected {
+		c.mu.Unlock()
 		return nil
 	}
 
-	close(c.stopChan)
-	c.wg.Wait()
+	// Mark as disconnected immediately
+	c.connected = false
+
+	// Close the stop channel to signal goroutines
+	select {
+	case <-c.stopChan:
+		// Already closed
+	default:
+		close(c.stopChan)
+	}
+
+	// Unlock before waiting to avoid deadlock
+	c.mu.Unlock()
+
+	// Wait for goroutines to finish with timeout
+	done := make(chan struct{})
+	go func() {
+		c.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Goroutines finished
+	case <-time.After(2 * time.Second):
+		// Timeout waiting for goroutines
+		log.Println("Warning: Timeout waiting for WebSocket goroutines to finish")
+	}
+
+	// Close the connection
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	if c.conn != nil {
 		err := c.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 		c.conn.Close()
 		c.conn = nil
-		c.connected = false
 		return err
 	}
 
-	c.connected = false
 	return nil
 }
 
@@ -224,6 +254,10 @@ func (c *wsClient) Send(ctx context.Context, request interface{}, handler Respon
 		return ErrNotConnected
 	}
 
+	// Protect concurrent writes to WebSocket
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
 	if err := conn.SetWriteDeadline(time.Now().Add(c.config.WriteTimeout)); err != nil {
 		return fmt.Errorf("failed to set write deadline: %w", err)
 	}
@@ -248,6 +282,10 @@ func (c *wsClient) authenticate() error {
 	if err != nil {
 		return err
 	}
+
+	// Protect concurrent writes to WebSocket
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 
 	if err := c.conn.SetWriteDeadline(time.Now().Add(c.config.WriteTimeout)); err != nil {
 		return err
@@ -316,6 +354,26 @@ func (c *wsClient) handleMessage(message []byte) {
 		return
 	}
 
+	// Check for errors array in response (API error format)
+	var errorsResp struct {
+		Errors []ErrorResponse `json:"errors"`
+	}
+	if json.Unmarshal(message, &errorsResp) == nil && len(errorsResp.Errors) > 0 {
+		for _, errResp := range errorsResp.Errors {
+			c.handlersMu.RLock()
+			handler, ok := c.handlers[errResp.TaskUUID]
+			c.handlersMu.RUnlock()
+
+			if ok {
+				handler(nil, NewAPIError(&errResp))
+				c.handlersMu.Lock()
+				delete(c.handlers, errResp.TaskUUID)
+				c.handlersMu.Unlock()
+			}
+		}
+		return
+	}
+
 	// Process each data item
 	for _, item := range response.Data {
 		var baseResp struct {
@@ -368,19 +426,16 @@ func (c *wsClient) handleMessage(message []byte) {
 			if err := json.Unmarshal(item, &resp); err == nil {
 				result = &resp
 			}
-		case "videoInference", "getResponse":
+		case TaskTypeVideoInference, TaskTypeGetResponse:
 			var resp VideoInferenceResponse
 			if err := json.Unmarshal(item, &resp); err == nil {
 				result = &resp
 			}
 		}
 
+		// Call handler with the result
+		// Handler will manage collection and cleanup
 		handler(result, nil)
-
-		// Remove handler after processing (single response per task)
-		c.handlersMu.Lock()
-		delete(c.handlers, baseResp.TaskUUID)
-		c.handlersMu.Unlock()
 	}
 }
 
@@ -404,14 +459,19 @@ func (c *wsClient) pingLoop() {
 				return
 			}
 
+			// Protect concurrent writes to WebSocket
+			c.writeMu.Lock()
 			if err := conn.SetWriteDeadline(time.Now().Add(c.config.WriteTimeout)); err != nil {
+				c.writeMu.Unlock()
 				c.triggerReconnect()
 				return
 			}
 			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				c.writeMu.Unlock()
 				c.triggerReconnect()
 				return
 			}
+			c.writeMu.Unlock()
 		}
 	}
 }
@@ -458,10 +518,21 @@ func (c *wsClient) reconnectLoop(ctx context.Context) {
 
 // triggerReconnect triggers a reconnection attempt
 func (c *wsClient) triggerReconnect() {
-	c.mu.Lock()
-	c.connected = false
-	c.mu.Unlock()
+	// Check if we're stopping to avoid deadlock
+	select {
+	case <-c.stopChan:
+		// Don't reconnect if we're shutting down
+		return
+	default:
+	}
 
+	// Use TryLock to avoid deadlock with Disconnect
+	if c.mu.TryLock() {
+		c.connected = false
+		c.mu.Unlock()
+	}
+
+	// Non-blocking send to reconnect channel
 	select {
 	case c.reconnectChan <- struct{}{}:
 	default:
