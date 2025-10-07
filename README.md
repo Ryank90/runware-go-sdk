@@ -111,40 +111,11 @@ finalResp, err := client.PollVideoResult(ctx, videoResp.TaskUUID, 60, 10*time.Se
 
 For detailed usage, see the [examples directory](./examples).
 
-## Advanced Features
-
-- **Context & Timeouts** - Full context support for cancellation and timeouts
-- **Custom Error Types** - `APIError`, `ErrNotConnected`, `ErrTimeout`, etc.
-- **Refiner Models** - Enhanced quality with multi-stage generation
-- **Embeddings** - Style and concept embeddings
-- **IP-Adapters** - Style transfer from reference images
-- **Safety Checks** - Content filtering with configurable strictness
-- **LoRA & ControlNet** - Fine-grained control over generation
-- **Async Video Polling** - Automatic retry with `PollVideoResult()`
-
-See [examples](./examples) for detailed usage of each feature.
-
 ## Models
 
 The SDK supports various model formats:
 
-### Image Models
-
-- **Runware models**: `runware:101@1`
-- **Civitai models**: `civitai:139562@297320`
-- **Custom models**: Upload via the Runware dashboard
-
 See the [Image Models documentation](https://runware.ai/docs/en/image-inference/models) for available models.
-
-### Video Models
-
-Popular video generation models:
-
-- **KlingAI**: `klingai:5@3` - High-quality video generation (up to 10s)
-- **Google Veo**: Advanced cinematic generation
-- **MiniMax Hailuo**: Fast video generation
-- **PixVerse**: Style-focused video generation
-- **Vidu**: High-resolution outputs
 
 See the [Video Models documentation](https://runware.ai/docs/en/video-inference/api-reference) for all available models and their capabilities.
 
@@ -217,14 +188,6 @@ Run tests with coverage:
 ```bash
 go test -v -cover ./...
 ```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Support
 
