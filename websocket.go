@@ -196,31 +196,10 @@ func (c *wsClient) Send(ctx context.Context, request interface{}, handler Respon
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Extract taskUUID for response matching
-	var reqMap map[string]interface{}
-	if err := json.Unmarshal(data, &reqMap); err != nil {
-		return fmt.Errorf("failed to extract taskUUID: %w", err)
-	}
-
-	var taskUUID string
-	if arr, ok := reqMap["data"].([]interface{}); ok && len(arr) > 0 {
-		if task, ok := arr[0].(map[string]interface{}); ok {
-			if uuid, ok := task["taskUUID"].(string); ok {
-				taskUUID = uuid
-			}
-		}
-	} else if arr := reqMap["0"]; arr != nil {
-		// Handle the array as separate keys
-		if task, ok := arr.(map[string]interface{}); ok {
-			if uuid, ok := task["taskUUID"].(string); ok {
-				taskUUID = uuid
-			}
-		}
-	}
-
-	// Simpler approach: remarshal to get the taskUUID
+	// Extract taskUUID directly from the request object
 	reqData, _ := json.Marshal(request)
 	var taskMap map[string]interface{}
+	var taskUUID string
 	if err := json.Unmarshal(reqData, &taskMap); err == nil {
 		if uuid, ok := taskMap["taskUUID"].(string); ok {
 			taskUUID = uuid
@@ -257,8 +236,12 @@ func (c *wsClient) Send(ctx context.Context, request interface{}, handler Respon
 
 // authenticate sends authentication credentials
 func (c *wsClient) authenticate() error {
-	authMsg := map[string]interface{}{
-		"apiKey": c.apiKey,
+	// Per Runware docs, auth must be an array with taskType and apiKey
+	authMsg := []map[string]interface{}{
+		{
+			"taskType": "authentication",
+			"apiKey":   c.apiKey,
+		},
 	}
 
 	data, err := json.Marshal(authMsg)

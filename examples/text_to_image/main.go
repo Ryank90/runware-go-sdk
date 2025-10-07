@@ -26,7 +26,7 @@ func main() {
 
 	// Simple text-to-image generation
 	prompt := "a serene mountain landscape with a crystal-clear lake reflecting the sky"
-	model := "runware:101@1"
+	model := "google:4@1"
 	width := 1024
 	height := 1024
 

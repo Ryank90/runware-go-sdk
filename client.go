@@ -30,9 +30,9 @@ type Config struct {
 }
 
 // DefaultConfig returns a default client configuration
-func DefaultConfig(apiKey string) *Config {
+func DefaultConfig() *Config {
 	return &Config{
-		APIKey:         apiKey,
+		APIKey:         "",
 		WSConfig:       DefaultWSConfig(),
 		RequestTimeout: 60 * time.Second,
 	}
@@ -45,7 +45,8 @@ func NewClient(config *Config) (*Client, error) {
 		if apiKey == "" {
 			return nil, ErrInvalidAPIKey
 		}
-		config = DefaultConfig(apiKey)
+		config = DefaultConfig()
+		config.APIKey = apiKey
 	}
 
 	if config.APIKey == "" {
