@@ -3,7 +3,6 @@ package runware
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -336,20 +335,20 @@ func (c *Client) sendRequest(ctx context.Context, req interface{}) (interface{},
 	respChan := make(chan interface{}, expectedCount)
 	errChan := make(chan error, 1)
 
-	handler := c.createResponseHandler(expectedCount, respChan, errChan)
-
-	// Extract task info for error reporting
-	reqJSON, _ := json.Marshal(req)
-	var reqData map[string]interface{}
+	// Define cleanup to remove handler from websocket after final response
 	var taskUUID, taskType string
-	if json.Unmarshal(reqJSON, &reqData) == nil {
-		if uuid, ok := reqData["taskUUID"].(string); ok {
-			taskUUID = uuid
-		}
-		if tt, ok := reqData["taskType"].(string); ok {
-			taskType = tt
+	if ti, ok := req.(taskIdentifiable); ok {
+		taskUUID = ti.GetTaskUUID()
+		taskType = ti.GetTaskType()
+	}
+	onDone := func() {
+		if taskUUID != "" {
+			c.ws.removeHandler(taskUUID)
 		}
 	}
+	handler := c.createResponseHandler(expectedCount, respChan, errChan, onDone)
+
+	// Extract task info for error reporting (already set above)
 
 	c.debugLogger.Printf("Submitting request: %s (TaskUUID: %s, expecting %d results)",
 		taskType, taskUUID, expectedCount)
@@ -366,25 +365,11 @@ func (c *Client) sendRequest(ctx context.Context, req interface{}) (interface{},
 func (c *Client) extractExpectedCount(req interface{}) int {
 	expectedCount := 1
 
-	if reqMap, ok := req.(interface{ GetNumberResults() *int }); ok {
-		if nr := reqMap.GetNumberResults(); nr != nil && *nr > 0 {
+	if rcp, ok := req.(resultCountProvider); ok {
+		if nr := rcp.GetNumberResults(); nr != nil && *nr > 0 {
 			expectedCount = *nr
 		}
 		return expectedCount
-	}
-
-	// Fallback: use reflection to extract numberResults
-	reqJSON, _ := json.Marshal(req)
-	var reqData map[string]interface{}
-	if json.Unmarshal(reqJSON, &reqData) == nil {
-		if nr, ok := reqData["numberResults"]; ok {
-			switch v := nr.(type) {
-			case float64:
-				expectedCount = int(v)
-			case int:
-				expectedCount = v
-			}
-		}
 	}
 
 	return expectedCount
@@ -395,6 +380,7 @@ func (c *Client) createResponseHandler(
 	expectedCount int,
 	respChan chan interface{},
 	errChan chan error,
+	onDone func(),
 ) func(interface{}, error) {
 	var mu sync.Mutex
 	receivedCount := 0
@@ -416,6 +402,9 @@ func (c *Client) createResponseHandler(
 
 		if receivedCount >= expectedCount {
 			close(respChan)
+			if onDone != nil {
+				onDone()
+			}
 		}
 	}
 }

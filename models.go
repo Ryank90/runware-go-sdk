@@ -2,6 +2,23 @@ package runware
 
 import "github.com/google/uuid"
 
+// ========================================
+// Internal lightweight interfaces for performance
+// ========================================
+
+// taskIdentifiable is implemented by all request types that carry task metadata.
+// It allows the client and websocket layers to avoid JSON round-trips.
+type taskIdentifiable interface {
+	GetTaskUUID() string
+	GetTaskType() string
+}
+
+// resultCountProvider is implemented by requests that support multiple results.
+// Returning nil means "unspecified" (defaults handled by caller).
+type resultCountProvider interface {
+	GetNumberResults() *int
+}
+
 // OutputType specifies the format of the output image
 type OutputType string
 
@@ -308,6 +325,11 @@ type ImageInferenceRequest struct {
 	ProviderSettings   *ProviderSettings   `json:"providerSettings,omitempty"`
 }
 
+// Interface implementations
+func (r *ImageInferenceRequest) GetTaskUUID() string    { return r.TaskUUID }
+func (r *ImageInferenceRequest) GetTaskType() string    { return r.TaskType }
+func (r *ImageInferenceRequest) GetNumberResults() *int { return r.NumberResults }
+
 // ImageInferenceResponse represents a response from image inference
 type ImageInferenceResponse struct {
 	TaskType        string   `json:"taskType"`
@@ -330,6 +352,10 @@ type UploadImageRequest struct {
 	ImageURL     *string `json:"imageURL,omitempty"`
 }
 
+// Interface implementations
+func (r *UploadImageRequest) GetTaskUUID() string { return r.TaskUUID }
+func (r *UploadImageRequest) GetTaskType() string { return r.TaskType }
+
 // UploadImageResponse represents a response from image upload
 type UploadImageResponse struct {
 	TaskType  string `json:"taskType"`
@@ -351,6 +377,11 @@ type UpscaleGanRequest struct {
 	UploadEndpoint *string         `json:"uploadEndpoint,omitempty"`
 	IncludeCost    *bool           `json:"includeCost,omitempty"`
 }
+
+// Interface implementations
+func (r *UpscaleGanRequest) GetTaskUUID() string    { return r.TaskUUID }
+func (r *UpscaleGanRequest) GetTaskType() string    { return r.TaskType }
+func (r *UpscaleGanRequest) GetNumberResults() *int { return nil }
 
 // UpscaleGanResponse represents a response from GAN upscaling
 type UpscaleGanResponse struct {
@@ -378,6 +409,11 @@ type RemoveImageBackgroundRequest struct {
 	Rgba           []int           `json:"rgba,omitempty"`
 }
 
+// Interface implementations
+func (r *RemoveImageBackgroundRequest) GetTaskUUID() string    { return r.TaskUUID }
+func (r *RemoveImageBackgroundRequest) GetTaskType() string    { return r.TaskType }
+func (r *RemoveImageBackgroundRequest) GetNumberResults() *int { return nil }
+
 // RemoveImageBackgroundResponse represents a response from background removal
 type RemoveImageBackgroundResponse struct {
 	TaskType        string   `json:"taskType"`
@@ -399,6 +435,11 @@ type EnhancePromptRequest struct {
 	IncludeCost     *bool  `json:"includeCost,omitempty"`
 }
 
+// Interface implementations
+func (r *EnhancePromptRequest) GetTaskUUID() string    { return r.TaskUUID }
+func (r *EnhancePromptRequest) GetTaskType() string    { return r.TaskType }
+func (r *EnhancePromptRequest) GetNumberResults() *int { return nil }
+
 // EnhancePromptResponse represents a response from prompt enhancement
 type EnhancePromptResponse struct {
 	TaskType string   `json:"taskType"`
@@ -414,6 +455,11 @@ type ImageCaptionRequest struct {
 	InputImage  string `json:"inputImage"`
 	IncludeCost *bool  `json:"includeCost,omitempty"`
 }
+
+// Interface implementations
+func (r *ImageCaptionRequest) GetTaskUUID() string    { return r.TaskUUID }
+func (r *ImageCaptionRequest) GetTaskType() string    { return r.TaskType }
+func (r *ImageCaptionRequest) GetNumberResults() *int { return nil }
 
 // ImageCaptionResponse represents a response from image captioning
 type ImageCaptionResponse struct {
@@ -630,6 +676,11 @@ type VideoInferenceRequest struct {
 	ProviderSettings   *VideoProviderSettings `json:"providerSettings,omitempty"`
 }
 
+// Interface implementations
+func (r *VideoInferenceRequest) GetTaskUUID() string    { return r.TaskUUID }
+func (r *VideoInferenceRequest) GetTaskType() string    { return r.TaskType }
+func (r *VideoInferenceRequest) GetNumberResults() *int { return r.NumberResults }
+
 // VideoInferenceResponse represents a response from video inference
 // Initial acknowledgment only has TaskType and TaskUUID
 // Final result includes VideoUUID, VideoURL, Status, Seed, and Cost
@@ -691,6 +742,11 @@ type AudioInferenceRequest struct {
 	ProviderSettings *AudioProviderSettings `json:"providerSettings,omitempty"`
 }
 
+// Interface implementations
+func (r *AudioInferenceRequest) GetTaskUUID() string    { return r.TaskUUID }
+func (r *AudioInferenceRequest) GetTaskType() string    { return r.TaskType }
+func (r *AudioInferenceRequest) GetNumberResults() *int { return r.NumberResults }
+
 // AudioInferenceResponse represents a response from audio inference
 // Initial acknowledgment only has TaskType and TaskUUID
 // Final result includes AudioUUID, AudioURL, Status, and Cost
@@ -730,6 +786,11 @@ type GetResponseRequest struct {
 	TaskType string `json:"taskType"`
 	TaskUUID string `json:"taskUUID"`
 }
+
+// Interface implementations
+func (r *GetResponseRequest) GetTaskUUID() string    { return r.TaskUUID }
+func (r *GetResponseRequest) GetTaskType() string    { return r.TaskType }
+func (r *GetResponseRequest) GetNumberResults() *int { return nil }
 
 // NewVideoInferenceRequest creates a new video inference request with required fields
 func NewVideoInferenceRequest(prompt, model string) *VideoInferenceRequest {

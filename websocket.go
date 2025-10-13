@@ -15,9 +15,10 @@ const (
 	DefaultWSURL = "wss://ws-api.runware.ai/v1"
 
 	// Default timeouts and intervals
-	defaultConnectTimeout    = 30 * time.Second
-	defaultPingInterval      = 30 * time.Second
-	defaultPongTimeout       = 10 * time.Second
+	defaultConnectTimeout = 30 * time.Second
+	defaultPingInterval   = 30 * time.Second
+	// Ensure pong timeout comfortably exceeds ping interval to avoid premature timeouts
+	defaultPongTimeout       = 90 * time.Second
 	defaultReconnectDelay    = 5 * time.Second
 	defaultMaxReconnectDelay = 60 * time.Second
 	defaultWriteTimeout      = 10 * time.Second
@@ -144,6 +145,13 @@ func (c *wsClient) Connect(ctx context.Context) error {
 
 	c.debugLogger.Printf("WebSocket connected, authenticating...")
 
+	// Set initial read deadline and pong handler to keep connection healthy
+	if err := c.conn.SetReadDeadline(time.Now().Add(c.config.PongTimeout)); err == nil {
+		c.conn.SetPongHandler(func(string) error {
+			return c.conn.SetReadDeadline(time.Now().Add(c.config.PongTimeout))
+		})
+	}
+
 	// Send authentication
 	if err := c.authenticate(); err != nil {
 		_ = c.conn.Close()
@@ -237,17 +245,11 @@ func (c *wsClient) Send(ctx context.Context, request interface{}, handler Respon
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Extract taskUUID and taskType for logging
-	reqData, _ := json.Marshal(request)
-	var taskMap map[string]interface{}
+	// Extract taskUUID and taskType via interfaces (no JSON round-trip)
 	var taskUUID, taskType string
-	if err := json.Unmarshal(reqData, &taskMap); err == nil {
-		if uuid, ok := taskMap["taskUUID"].(string); ok {
-			taskUUID = uuid
-		}
-		if tt, ok := taskMap["taskType"].(string); ok {
-			taskType = tt
-		}
+	if ti, ok := request.(taskIdentifiable); ok {
+		taskUUID = ti.GetTaskUUID()
+		taskType = ti.GetTaskType()
 	}
 
 	if taskUUID == "" {
@@ -286,6 +288,13 @@ func (c *wsClient) Send(ctx context.Context, request interface{}, handler Respon
 	return nil
 }
 
+// removeHandler removes a handler by taskUUID (no-op if missing)
+func (c *wsClient) removeHandler(taskUUID string) {
+	c.handlersMu.Lock()
+	delete(c.handlers, taskUUID)
+	c.handlersMu.Unlock()
+}
+
 // authenticate sends authentication credentials
 func (c *wsClient) authenticate() error {
 	// Per Runware docs, auth must be an array with taskType and apiKey
@@ -322,13 +331,14 @@ func (c *wsClient) readLoop() {
 		default:
 			_, message, err := c.conn.ReadMessage()
 			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-					c.errorChan <- fmt.Errorf("unexpected close: %w", err)
-					c.triggerReconnect()
-				}
+				// On any read error, trigger reconnect to restore read loop
+				c.errorChan <- fmt.Errorf("read error: %w", err)
+				c.triggerReconnect()
 				return
 			}
 
+			// Extend read deadline after receiving any message
+			_ = c.conn.SetReadDeadline(time.Now().Add(c.config.PongTimeout))
 			c.messageChan <- message
 		}
 	}
@@ -475,20 +485,26 @@ func (c *wsClient) handleMessage(message []byte) {
 			}
 		case TaskTypeGetResponse:
 			// GetResponse can return video or audio based on original task
-			// Try video first, then audio
+			// Try video first; accept even when VideoUUID is empty (processing)
 			var videoResp VideoInferenceResponse
-			if err := json.Unmarshal(item, &videoResp); err == nil && videoResp.VideoUUID != "" {
-				result = &videoResp
-			} else {
-				var audioResp AudioInferenceResponse
-				if err := json.Unmarshal(item, &audioResp); err == nil {
+			if err := json.Unmarshal(item, &videoResp); err == nil {
+				// If it decodes cleanly and has any indicative fields, treat as video
+				if videoResp.Status != "" || videoResp.VideoUUID != "" || videoResp.VideoURL != nil || videoResp.ThumbnailURL != nil {
+					result = &videoResp
+					break
+				}
+			}
+			// Otherwise, try audio; accept similarly even without AudioUUID during processing
+			var audioResp AudioInferenceResponse
+			if err := json.Unmarshal(item, &audioResp); err == nil {
+				if audioResp.Status != "" || audioResp.AudioUUID != "" || audioResp.AudioURL != nil || audioResp.AudioBase64Data != nil || audioResp.AudioDataURI != nil {
 					result = &audioResp
 				}
 			}
 		}
 
 		// Call handler with the result
-		// Handler will manage collection and cleanup
+		// Handler will manage collection and cleanup in client
 		handler(result, nil)
 	}
 }
