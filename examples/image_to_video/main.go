@@ -27,24 +27,30 @@ func main() {
 
 	fmt.Println("Connected to Runware API")
 
-	// Upload seed image
-	fmt.Println("Uploading seed image...")
-	uploadResp, err := client.UploadImageFromURL(ctx, "https://example.com/scene.jpg")
+	// Step 1: Generate a base image to animate
+	fmt.Println("\nStep 1: Generating base image to animate...")
+	imagePrompt := "A serene mountain landscape with a crystal-clear lake, photorealistic, highly detailed"
+	imageResp, err := client.TextToImage(ctx, imagePrompt, "runware:101@1", 1024, 576)
 	if err != nil {
-		log.Fatalf("Failed to upload image: %v", err)
+		log.Fatalf("Failed to generate base image: %v", err)
 	}
 
-	fmt.Printf("Image uploaded: %s\n", uploadResp.ImageUUID)
+	fmt.Printf("Base image generated: %s\n", imageResp.ImageUUID)
+	if imageResp.ImageURL == nil {
+		log.Fatalf("No image URL returned from base image generation")
+	}
+	fmt.Printf("Image URL: %s\n", *imageResp.ImageURL)
 
-	// Generate video from the image
-	prompt := "Animate this scene with gentle camera movement, add realistic motion"
+	// Step 2: Generate video from the image
+	videoPrompt := "Gentle camera pan across the landscape, realistic clouds moving, water rippling"
 	model := "klingai:5@3"
 	duration := 5
 
-	fmt.Println("\nGenerating video from image...")
+	fmt.Println("\nStep 2: Generating video from image...")
 	fmt.Println("This will take several minutes...")
 
-	response, err := client.ImageToVideo(ctx, prompt, model, uploadResp.ImageUUID, duration)
+	// Use the image URL (not UUID) for video generation
+	response, err := client.ImageToVideo(ctx, videoPrompt, model, *imageResp.ImageURL, duration)
 	if err != nil {
 		log.Fatalf("Failed to submit video request: %v", err)
 	}

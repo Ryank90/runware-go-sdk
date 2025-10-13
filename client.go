@@ -557,35 +557,69 @@ func (c *Client) GetResponse(ctx context.Context, taskUUID string) (*VideoInfere
 }
 
 // PollVideoResult polls for video generation result with automatic retries
+// This function will keep polling until it gets a definitive response (success/error)
+// or reaches maxAttempts. Each individual poll has its own timeout, but the overall
+// polling process can run as long as needed.
 func (c *Client) PollVideoResult(
 	ctx context.Context,
 	taskUUID string,
 	maxAttempts int,
 	pollInterval time.Duration,
 ) (*VideoInferenceResponse, error) {
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		resp, err := c.GetResponse(ctx, taskUUID)
+	c.debugLogger.Printf("Starting video polling for TaskUUID: %s (max attempts: %d, interval: %v)",
+		taskUUID, maxAttempts, pollInterval)
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Check if parent context was canceled
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		// Create a fresh context for each poll with a reasonable timeout
+		// This allows the overall polling to continue beyond the client's default timeout
+		pollCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		resp, err := c.GetResponse(pollCtx, taskUUID)
+		cancel()
+
 		if err != nil {
+			c.debugLogger.Printf("Poll attempt %d/%d: error - %v", attempt, maxAttempts, err)
+			// If it's a timeout on this specific poll, continue trying
+			if IsTimeout(err) || err == context.DeadlineExceeded {
+				c.debugLogger.Printf("Poll request timed out, will retry...")
+				time.Sleep(pollInterval)
+				continue
+			}
+			// For other errors, return immediately
 			return nil, err
 		}
 
+		c.debugLogger.Printf("Poll attempt %d/%d: status = %s", attempt, maxAttempts, resp.Status)
+
 		switch resp.Status {
 		case TaskStatusSuccess:
+			c.debugLogger.Printf("Video generation completed successfully!")
 			return resp, nil
 		case TaskStatusError:
-			return nil, fmt.Errorf("video generation failed")
-		case TaskStatusProcessing:
-			// Continue polling
+			return nil, fmt.Errorf("video generation failed - check API response for details")
+		case TaskStatusProcessing, "":
+			// Continue polling - status is still processing or not set yet
+			c.debugLogger.Printf("Video still processing, waiting %v before next poll...", pollInterval)
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			case <-time.After(pollInterval):
 				continue
 			}
+		default:
+			// Unknown status, log it but continue polling
+			c.debugLogger.Printf("Unknown status: %s, continuing to poll...", resp.Status)
+			time.Sleep(pollInterval)
 		}
 	}
 
-	return nil, fmt.Errorf("polling timeout: max attempts (%d) reached", maxAttempts)
+	return nil, fmt.Errorf("polling exhausted: reached max attempts (%d) without definitive response", maxAttempts)
 }
 
 // ImageToImage transforms an image based on a prompt

@@ -27,33 +27,46 @@ func main() {
 
 	fmt.Println("Connected to Runware API")
 
-	// Upload start and end frame images
-	fmt.Println("Uploading start frame...")
-	startFrame, err := client.UploadImageFromURL(ctx, "https://example.com/start.jpg")
+	// Step 1: Generate start frame
+	fmt.Println("\nStep 1: Generating start frame...")
+	startPrompt := "A peaceful sunrise over misty mountains, photorealistic"
+	startFrame, err := client.TextToImage(ctx, startPrompt, "runware:101@1", 1024, 576)
 	if err != nil {
-		log.Fatalf("Failed to upload start frame: %v", err)
+		log.Fatalf("Failed to generate start frame: %v", err)
 	}
+	if startFrame.ImageURL == nil {
+		log.Fatalf("No image URL returned for start frame")
+	}
+	fmt.Printf("Start frame generated: %s\n", startFrame.ImageUUID)
+	fmt.Printf("Start frame URL: %s\n", *startFrame.ImageURL)
 
-	fmt.Println("Uploading end frame...")
-	endFrame, err := client.UploadImageFromURL(ctx, "https://example.com/end.jpg")
+	// Step 2: Generate end frame
+	fmt.Println("\nStep 2: Generating end frame...")
+	endPrompt := "The same mountains at sunset with golden light, photorealistic"
+	endFrame, err := client.TextToImage(ctx, endPrompt, "runware:101@1", 1024, 576)
 	if err != nil {
-		log.Fatalf("Failed to upload end frame: %v", err)
+		log.Fatalf("Failed to generate end frame: %v", err)
 	}
+	if endFrame.ImageURL == nil {
+		log.Fatalf("No image URL returned for end frame")
+	}
+	fmt.Printf("End frame generated: %s\n", endFrame.ImageUUID)
+	fmt.Printf("End frame URL: %s\n", *endFrame.ImageURL)
 
-	// Create video with frame constraints for smooth transition
+	// Step 3: Create video with frame constraints for smooth transition
+	fmt.Println("\nStep 3: Creating video with frame constraints...")
 	request := runware.NewVideoRequestBuilder(
-		"Smooth transition between scenes, cinematic movement",
+		"Smooth timelapse transition from sunrise to sunset, natural lighting change",
 		"klingai:5@3",
 	).
 		WithDuration(5).
-		WithFirstFrame(startFrame.ImageUUID).
-		WithLastFrame(endFrame.ImageUUID).
+		WithFirstFrame(*startFrame.ImageURL).
+		WithLastFrame(*endFrame.ImageURL).
 		WithResolution(1920, 1080).
 		WithFPS(24).
 		WithIncludeCost(true).
 		Build()
 
-	fmt.Println("\nGenerating video with frame constraints...")
 	fmt.Println("This will take several minutes...")
 
 	response, err := client.VideoInference(ctx, request)

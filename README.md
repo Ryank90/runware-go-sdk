@@ -158,22 +158,6 @@ See the [Image Models documentation](https://runware.ai/docs/en/image-inference/
 
 See the [Video Models documentation](https://runware.ai/docs/en/video-inference/api-reference) for all available models and their capabilities.
 
-## Schedulers
-
-Available schedulers for diffusion sampling:
-
-- `SchedulerEuler`
-- `SchedulerEulerA`
-- `SchedulerDPMPP2M`
-- `SchedulerDPMPP2MKarras`
-- `SchedulerDPMPPSDE`
-- `SchedulerDPMPPSDEKarras`
-- `SchedulerLMS`
-- `SchedulerLMSKarras`
-- `SchedulerHeun`
-- `SchedulerDDIM`
-- `SchedulerPNDM`
-
 ## API Reference
 
 ### Client Methods

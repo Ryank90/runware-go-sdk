@@ -27,18 +27,25 @@ func main() {
 
 	fmt.Println("Connected to Runware API")
 
-	// Text-to-video generation
+	// Text-to-video generation with OpenAI model
 	prompt := "A serene beach at sunset with gentle waves crashing on the shore"
-	model := "klingai:5@3"
-	duration := 5
+	model := "openai:3@1"
+	duration := 4 // OpenAI Sora only supports 4, 8, or 12 seconds
 
 	fmt.Printf("\nGenerating video...\n")
 	fmt.Printf("Prompt: %s\n", prompt)
 	fmt.Printf("Model: %s\n", model)
 	fmt.Printf("Duration: %d seconds\n\n", duration)
 
+	// OpenAI model requires specific resolution (1280x720 instead of default 1920x1080)
+	req := runware.NewVideoRequestBuilder(prompt, model).
+		WithDuration(duration).
+		WithResolution(1280, 720).
+		WithIncludeCost(true).
+		Build()
+
 	// Submit the video generation request (returns quickly with acknowledgment)
-	response, err := client.TextToVideo(ctx, prompt, model, duration)
+	response, err := client.VideoInference(ctx, req)
 	if err != nil {
 		log.Fatalf("Failed to submit video request: %v", err)
 	}
