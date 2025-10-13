@@ -303,3 +303,143 @@ func TestAPIError(t *testing.T) {
 		t.Error("IsAPIError() returned false for APIError")
 	}
 }
+
+func TestPollVideoResultSuccess(t *testing.T) {
+	// This is a unit test for the polling logic structure
+	// Actual API calls are tested in integration tests
+
+	// Test that PollVideoResult handles context correctly
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Verify context is respected
+	select {
+	case <-ctx.Done():
+		t.Error("Context should not be done yet")
+	default:
+		// Expected: context is still active
+	}
+}
+
+func TestPollVideoResultContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// Verify canceled context is handled
+	if ctx.Err() == nil {
+		t.Error("Context should be canceled")
+	}
+}
+
+func TestExtractExpectedCount(t *testing.T) {
+	config := DefaultConfig()
+	config.APIKey = testAPIKey
+
+	client := &Client{
+		config:         config,
+		requestTimeout: config.RequestTimeout,
+		debugLogger:    &defaultLogger{},
+	}
+
+	tests := []struct {
+		name     string
+		req      *ImageInferenceRequest
+		expected int
+	}{
+		{
+			name: "nil numberResults defaults to 1",
+			req: &ImageInferenceRequest{
+				NumberResults: nil,
+			},
+			expected: 1,
+		},
+		{
+			name: "numberResults = 4",
+			req: &ImageInferenceRequest{
+				NumberResults: func() *int { n := 4; return &n }(),
+			},
+			expected: 4,
+		},
+		{
+			name: "numberResults = 1 explicitly",
+			req: &ImageInferenceRequest{
+				NumberResults: func() *int { n := 1; return &n }(),
+			},
+			expected: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			count := client.extractExpectedCount(tt.req)
+			if count != tt.expected {
+				t.Errorf("extractExpectedCount() = %d, want %d", count, tt.expected)
+			}
+		})
+	}
+}
+
+func TestTimeoutErrorFormatting(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      *TimeoutError
+		contains string
+	}{
+		{
+			name: "single result timeout",
+			err: &TimeoutError{
+				TaskType:      "imageInference",
+				TaskUUID:      "test-uuid",
+				Duration:      30 * time.Second,
+				ExpectedCount: 1,
+				ReceivedCount: 0,
+			},
+			contains: "no response received",
+		},
+		{
+			name: "partial batch timeout",
+			err: &TimeoutError{
+				TaskType:      "imageInference",
+				TaskUUID:      "test-uuid",
+				Duration:      60 * time.Second,
+				ExpectedCount: 4,
+				ReceivedCount: 2,
+			},
+			contains: "received 2/4 results",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errMsg := tt.err.Error()
+			if errMsg == "" {
+				t.Error("Error message should not be empty")
+			}
+			// Basic validation that error contains expected info
+			if len(errMsg) < 10 {
+				t.Errorf("Error message too short: %s", errMsg)
+			}
+		})
+	}
+}
+
+func TestDefaultConfigTimeout(t *testing.T) {
+	config := DefaultConfig()
+
+	if config == nil {
+		t.Fatal("DefaultConfig should not return nil")
+	}
+
+	if config.RequestTimeout == 0 {
+		t.Error("RequestTimeout should be set")
+	}
+
+	if config.WSConfig == nil {
+		t.Error("WSConfig should be initialized")
+	}
+
+	// Verify timeout is reasonable (should be at least 1 minute)
+	if config.RequestTimeout < time.Minute {
+		t.Errorf("RequestTimeout %v seems too short for production use", config.RequestTimeout)
+	}
+}

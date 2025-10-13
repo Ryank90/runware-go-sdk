@@ -137,18 +137,31 @@ See the [`examples/`](./examples) directory for complete, working examples:
 - [Video with Constraints](./examples/video_with_constraints) - Frame-by-frame constraints
 - [Batch Video](./examples/batch_video) - Generate multiple videos in parallel
 
-### Quick Start
+### Quick Examples
 
+All examples are in the [`examples/`](./examples) directory with complete, working code.
+
+**Image Generation:**
 ```go
-// Text to Image
-response, err := client.TextToImage(ctx, "a sunset", "runware:101@1", 1024, 1024)
-
-// Text to Video (with async polling)
-videoResp, err := client.TextToVideo(ctx, "ocean waves", "klingai:5@3", 5)
-finalResp, err := client.PollVideoResult(ctx, videoResp.TaskUUID, 60, 10*time.Second)
+// Simple text-to-image
+response, err := client.TextToImage(ctx, "a serene mountain landscape", "runware:101@1", 1024, 1024)
 ```
 
-For detailed usage, see the [examples directory](./examples).
+**Video Generation:**
+```go
+// Build video request with custom settings
+req := runware.NewVideoRequestBuilder("ocean waves", "klingai:5@3").
+    WithDuration(5).
+    WithResolution(1920, 1080).
+    WithIncludeCost(true).
+    Build()
+
+// Submit request and poll for result
+videoResp, err := client.VideoInference(ctx, req)
+finalResp, err := client.PollVideoResult(ctx, videoResp.TaskUUID, 120, 15*time.Second)
+```
+
+For complete working examples, see the [examples directory](./examples).
 
 ## Models
 
