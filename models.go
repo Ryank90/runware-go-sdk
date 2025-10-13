@@ -59,6 +59,7 @@ const (
 const (
 	TaskTypeImageInference         = "imageInference"
 	TaskTypeVideoInference         = "videoInference"
+	TaskTypeAudioInference         = "audioInference"
 	TaskTypePromptEnhance          = "promptEnhance"
 	TaskTypeImageCaption           = "imageCaption"
 	TaskTypeImageUpload            = "imageUpload"
@@ -641,6 +642,87 @@ type VideoInferenceResponse struct {
 	ThumbnailURL *string    `json:"thumbnailURL,omitempty"`
 	Seed         *int64     `json:"seed,omitempty"`
 	Cost         *float64   `json:"cost,omitempty"`
+}
+
+// AudioOutputFormat specifies the audio file format
+type AudioOutputFormat string
+
+const (
+	AudioOutputFormatMP3 AudioOutputFormat = "MP3"
+)
+
+// AudioSettings defines audio quality parameters
+type AudioSettings struct {
+	SampleRate *int `json:"sampleRate,omitempty"` // Hz (22050, 44100, 48000)
+	Bitrate    *int `json:"bitrate,omitempty"`    // kbps (affects compression quality)
+}
+
+// ElevenLabsMusicSettings defines provider-specific settings for ElevenLabs music generation
+type ElevenLabsMusicSettings struct {
+	PromptInfluence *float64 `json:"promptInfluence,omitempty"` // 0.0 to 1.0
+}
+
+// ElevenLabsAudioSettings defines provider-specific settings for ElevenLabs
+type ElevenLabsAudioSettings struct {
+	Music *ElevenLabsMusicSettings `json:"music,omitempty"`
+}
+
+// AudioProviderSettings groups all provider-specific audio settings
+type AudioProviderSettings struct {
+	ElevenLabs *ElevenLabsAudioSettings `json:"elevenlabs,omitempty"`
+}
+
+// AudioInferenceRequest represents a request for audio inference
+type AudioInferenceRequest struct {
+	TaskType         string                 `json:"taskType"`
+	TaskUUID         string                 `json:"taskUUID"`
+	OutputType       *OutputType            `json:"outputType,omitempty"`
+	OutputFormat     *AudioOutputFormat     `json:"outputFormat,omitempty"`
+	WebhookURL       *string                `json:"webhookURL,omitempty"`
+	DeliveryMethod   *DeliveryMethod        `json:"deliveryMethod,omitempty"`
+	UploadEndpoint   *string                `json:"uploadEndpoint,omitempty"`
+	TTL              *int                   `json:"ttl,omitempty"`
+	IncludeCost      *bool                  `json:"includeCost,omitempty"`
+	PositivePrompt   string                 `json:"positivePrompt"`
+	Model            string                 `json:"model"`
+	Duration         *int                   `json:"duration,omitempty"` // seconds
+	NumberResults    *int                   `json:"numberResults,omitempty"`
+	AudioSettings    *AudioSettings         `json:"audioSettings,omitempty"`
+	ProviderSettings *AudioProviderSettings `json:"providerSettings,omitempty"`
+}
+
+// AudioInferenceResponse represents a response from audio inference
+// Initial acknowledgment only has TaskType and TaskUUID
+// Final result includes AudioUUID, AudioURL, Status, and Cost
+type AudioInferenceResponse struct {
+	TaskType        string     `json:"taskType"`
+	TaskUUID        string     `json:"taskUUID"`
+	Status          TaskStatus `json:"status,omitempty"`
+	AudioUUID       string     `json:"audioUUID,omitempty"`
+	AudioURL        *string    `json:"audioURL,omitempty"`
+	AudioBase64Data *string    `json:"audioBase64Data,omitempty"`
+	AudioDataURI    *string    `json:"audioDataURI,omitempty"`
+	Cost            *float64   `json:"cost,omitempty"`
+}
+
+// NewAudioInferenceRequest creates a new audio inference request with required fields
+func NewAudioInferenceRequest(prompt, model string, duration int) *AudioInferenceRequest {
+	outputType := OutputTypeURL
+	deliveryMethod := DeliveryMethodAsync // Audio requires async delivery
+	outputFormat := AudioOutputFormatMP3
+	numberResults := 1
+
+	return &AudioInferenceRequest{
+		TaskType:       TaskTypeAudioInference,
+		TaskUUID:       uuid.New().String(),
+		PositivePrompt: prompt,
+		Model:          model,
+		Duration:       &duration,
+		OutputType:     &outputType,
+		OutputFormat:   &outputFormat,
+		DeliveryMethod: &deliveryMethod,
+		NumberResults:  &numberResults,
+	}
 }
 
 // GetResponseRequest represents a request to get the status/result of an async task

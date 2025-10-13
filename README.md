@@ -1,6 +1,6 @@
 # Runware Go SDK
 
-A Go SDK for the [Runware AI](https://runware.ai) platform. Generate, transform, and enhance images and videos using state-of-the-art AI models through a simple interface.
+A Go SDK for the [Runware AI](https://runware.ai) platform. Generate, transform, and enhance images, videos, and audio using state-of-the-art AI models through a simple interface.
 
 ## Installation
 
@@ -137,6 +137,9 @@ See the [`examples/`](./examples) directory for complete, working examples:
 - [Video with Constraints](./examples/video_with_constraints) - Frame-by-frame constraints
 - [Batch Video](./examples/batch_video) - Generate multiple videos in parallel
 
+**Audio Generation:**
+- [Text to Audio](./examples/text_to_audio) - Generate audio from text with async polling
+
 ### Quick Examples
 
 All examples are in the [`examples/`](./examples) directory with complete, working code.
@@ -161,15 +164,28 @@ videoResp, err := client.VideoInference(ctx, req)
 finalResp, err := client.PollVideoResult(ctx, videoResp.TaskUUID, 120, 15*time.Second)
 ```
 
+**Audio Generation:**
+```go
+// Build audio request with quality settings
+req := runware.NewAudioRequestBuilder("gentle piano melody", "elevenlabs:1@1", 10).
+    WithAudioSettings(44100, 192).
+    WithIncludeCost(true).
+    Build()
+
+// Submit request and poll for result
+audioResp, err := client.AudioInference(ctx, req)
+finalResp, err := client.PollAudioResult(ctx, audioResp.TaskUUID, 60, 5*time.Second)
+```
+
 For complete working examples, see the [examples directory](./examples).
 
 ## Models
 
 The SDK supports various model formats:
 
-See the [Image Models documentation](https://runware.ai/docs/en/image-inference/models) for available models.
-
-See the [Video Models documentation](https://runware.ai/docs/en/video-inference/api-reference) for all available models and their capabilities.
+- **Image Models**: See the [Image Models documentation](https://runware.ai/docs/en/image-inference/models)
+- **Video Models**: See the [Video Models documentation](https://runware.ai/docs/en/video-inference/api-reference)
+- **Audio Models**: See the [Audio Inference documentation](https://runware.ai/docs/en/audio-inference/api-reference)
 
 ## API Reference
 
@@ -196,6 +212,13 @@ See the [Video Models documentation](https://runware.ai/docs/en/video-inference/
 - `ImageToVideo(ctx, prompt, model, seedImage, duration) (*VideoInferenceResponse, error)`
 - `VideoInference(ctx, request) (*VideoInferenceResponse, error)`
 - `VideoInferenceBatch(ctx, requests) ([]*VideoInferenceResponse, error)`
+- `PollVideoResult(ctx, taskUUID, maxAttempts, pollInterval) (*VideoInferenceResponse, error)`
+
+#### Audio Generation
+
+- `TextToAudio(ctx, prompt, model, duration) (*AudioInferenceResponse, error)`
+- `AudioInference(ctx, request) (*AudioInferenceResponse, error)`
+- `PollAudioResult(ctx, taskUUID, maxAttempts, pollInterval) (*AudioInferenceResponse, error)`
 
 #### Image Utilities
 
@@ -228,5 +251,4 @@ go test -v -cover ./...
 ## Support
 
 - **Documentation**: [https://runware.ai/docs](https://runware.ai/docs)
-- **API Reference**: [https://runware.ai/docs/en/image-inference/api-reference](https://runware.ai/docs/en/image-inference/api-reference)
 - **GitHub Issues**: [https://github.com/Ryank90/runware-go-sdk/issues](https://github.com/Ryank90/runware-go-sdk/issues)

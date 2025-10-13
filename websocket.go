@@ -463,10 +463,27 @@ func (c *wsClient) handleMessage(message []byte) {
 			if err := json.Unmarshal(item, &resp); err == nil {
 				result = &resp
 			}
-		case TaskTypeVideoInference, TaskTypeGetResponse:
+		case TaskTypeVideoInference:
 			var resp VideoInferenceResponse
 			if err := json.Unmarshal(item, &resp); err == nil {
 				result = &resp
+			}
+		case TaskTypeAudioInference:
+			var resp AudioInferenceResponse
+			if err := json.Unmarshal(item, &resp); err == nil {
+				result = &resp
+			}
+		case TaskTypeGetResponse:
+			// GetResponse can return video or audio based on original task
+			// Try video first, then audio
+			var videoResp VideoInferenceResponse
+			if err := json.Unmarshal(item, &videoResp); err == nil && videoResp.VideoUUID != "" {
+				result = &videoResp
+			} else {
+				var audioResp AudioInferenceResponse
+				if err := json.Unmarshal(item, &audioResp); err == nil {
+					result = &audioResp
+				}
 			}
 		}
 
