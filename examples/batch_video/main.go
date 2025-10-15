@@ -36,9 +36,10 @@ func main() {
 
 	requests := make([]*runware.VideoInferenceRequest, len(prompts))
 	for i, prompt := range prompts {
-		requests[i] = runware.NewVideoRequestBuilder(prompt, "klingai:5@3").
-			WithDuration(5).
-			WithResolution(1920, 1080).
+		// Use OpenAI Sora for cost efficiency; requires 1280x720 and durations 4/8/12
+		requests[i] = runware.NewVideoRequestBuilder(prompt, "openai:3@1").
+			WithDuration(4).
+			WithResolution(1280, 720).
 			WithIncludeCost(true).
 			Build()
 	}
@@ -54,17 +55,36 @@ func main() {
 	fmt.Println("\nPolling for results...")
 	fmt.Println("This will take several minutes...")
 
-	// Poll for each result
+	// Poll for each result concurrently to minimize wall time
 	finalResponses := make([]*runware.VideoInferenceResponse, len(responses))
+	type idxResp struct {
+		idx  int
+		resp *runware.VideoInferenceResponse
+		err  error
+	}
+	resultCh := make(chan idxResp, len(responses))
+
 	for i, resp := range responses {
-		if resp != nil {
+		i, resp := i, resp
+		if resp == nil {
+			continue
+		}
+		go func() {
 			fmt.Printf("\nPolling video %d/%d...\n", i+1, len(responses))
-			finalResp, err := client.PollVideoResult(ctx, resp.TaskUUID, 60, 10*time.Second)
-			if err != nil {
-				log.Printf("Failed to get video %d result: %v", i+1, err)
+			r, err := client.PollVideoResult(ctx, resp.TaskUUID, 60, 10*time.Second)
+			resultCh <- idxResp{idx: i, resp: r, err: err}
+		}()
+	}
+
+	// Collect all
+	for range responses {
+		select {
+		case r := <-resultCh:
+			if r.err != nil {
+				log.Printf("Failed to get video %d result: %v", r.idx+1, r.err)
 				continue
 			}
-			finalResponses[i] = finalResp
+			finalResponses[r.idx] = r.resp
 		}
 	}
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -158,10 +159,24 @@ func processBatch[Req any, Resp any](
 	results := make(chan batchResult[Resp], len(requests))
 	var wg sync.WaitGroup
 
+	// Bound concurrency to avoid unbounded goroutines
+	// Use a reasonable default tied to CPU count
+	maxParallel := runtime.GOMAXPROCS(0) * 4
+	if maxParallel < 8 {
+		maxParallel = 8
+	}
+	if len(requests) < maxParallel {
+		maxParallel = len(requests)
+	}
+
+	sem := make(chan struct{}, maxParallel)
+
 	for i, req := range requests {
 		wg.Add(1)
+		sem <- struct{}{}
 		go func(idx int, request Req) {
 			defer wg.Done()
+			defer func() { <-sem }()
 			resp, err := handler(ctx, request)
 			results <- batchResult[Resp]{index: idx, resp: resp, err: err}
 		}(i, req)

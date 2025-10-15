@@ -162,10 +162,11 @@ func (c *wsClient) Connect(ctx context.Context) error {
 	c.debugLogger.Printf("Authenticated successfully")
 
 	// Start background goroutines
-	c.wg.Add(3)
+	c.wg.Add(4)
 	go c.readLoop()
 	go c.processMessages()
 	go c.pingLoop()
+	go c.logErrorsLoop()
 
 	if c.config.EnableAutoReconnect {
 		c.wg.Add(1)
@@ -225,6 +226,21 @@ func (c *wsClient) Disconnect() error {
 	}
 
 	return nil
+}
+
+// logErrorsLoop drains errorChan to avoid blocking writers and logs errors
+func (c *wsClient) logErrorsLoop() {
+	defer c.wg.Done()
+	for {
+		select {
+		case <-c.stopChan:
+			return
+		case err := <-c.errorChan:
+			if err != nil {
+				c.debugLogger.Printf("websocket error: %v", err)
+			}
+		}
+	}
 }
 
 // IsConnected returns whether the client is connected
