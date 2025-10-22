@@ -122,63 +122,7 @@ client, _ := runware.NewClient(config)
 
 ## Usage Examples
 
-See the [`examples/`](./examples) directory for complete, working examples:
-
-**Image Generation:**
-- [Text to Image](./examples/text_to_image) - Simple image generation
-- [Advanced Generation](./examples/advanced_generation) - Using the builder pattern with advanced options
-- [Image Transformation](./examples/image_transformation) - Transform existing images
-- [Batch Generation](./examples/batch_generation) - Generate multiple images in parallel
-- [ControlNet](./examples/controlnet) - Guided generation with ControlNet
-- [Utilities](./examples/utilities) - Upscaling, background removal, captioning, etc.
-
-**Video Generation:**
-- [Text to Video](./examples/text_to_video) - Generate videos from text with async polling
-- [Image to Video](./examples/image_to_video) - Animate images into videos
-- [Advanced Video](./examples/advanced_video) - Provider settings and advanced controls
-- [Video with Constraints](./examples/video_with_constraints) - Frame-by-frame constraints
-- [Batch Video](./examples/batch_video) - Generate multiple videos in parallel
-
-**Audio Generation:**
-- [Text to Audio](./examples/text_to_audio) - Generate audio from text with async polling
-
-### Quick Examples
-
-All examples are in the [`examples/`](./examples) directory with complete, working code.
-
-**Image Generation:**
-```go
-// Simple text-to-image
-response, err := client.TextToImage(ctx, "a serene mountain landscape", "runware:101@1", 1024, 1024)
-```
-
-**Video Generation:**
-```go
-// Build video request with custom settings
-req := models.NewVideoInferenceRequest("ocean waves", "klingai:5@3")
-duration := 5
-req.Duration = &duration
-width := 1920
-height := 1080
-req.Width = &width
-req.Height = &height
-
-// Submit request and poll for result
-videoResp, err := client.VideoInference(ctx, req)
-finalResp, err := client.PollVideoResult(ctx, videoResp.TaskUUID, 120, 15*time.Second)
-```
-
-**Audio Generation:**
-```go
-// Build audio request with quality settings
-req := models.NewAudioInferenceRequest("gentle piano melody", "elevenlabs:1@1", 10)
-
-// Submit request and poll for result
-audioResp, err := client.AudioInference(ctx, req)
-finalResp, err := client.PollAudioResult(ctx, audioResp.TaskUUID, 60, 5*time.Second)
-```
-
-For complete working examples, see the [examples directory](./examples).
+See the [`examples/`](./examples) directory for complete, working examples.
 
 ## Models
 
