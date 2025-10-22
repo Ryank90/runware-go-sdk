@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,11 +17,14 @@ import (
 
 // mockLogger for testing
 type mockLogger struct {
+	mu   sync.Mutex
 	logs []string
 }
 
 func (m *mockLogger) Printf(format string, v ...interface{}) {
-	// Store logs for assertion
+	// Store logs for assertion (thread-safe)
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.logs = append(m.logs, format)
 }
 
