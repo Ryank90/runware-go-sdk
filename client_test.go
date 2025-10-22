@@ -5,6 +5,9 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	wsinternal "github.com/Ryank90/runware-go-sdk/internal/ws"
+	"github.com/Ryank90/runware-go-sdk/models"
 )
 
 const (
@@ -12,6 +15,7 @@ const (
 	testModel  = "runware:101@1"
 	testUUID   = "test-uuid"
 	testAPIKey = "test-api-key"
+	testKey    = "test-key"
 )
 
 func TestNewClient(t *testing.T) {
@@ -29,7 +33,7 @@ func TestNewClient(t *testing.T) {
 			name: "valid config",
 			config: &Config{
 				APIKey:         "test-api-key",
-				WSConfig:       DefaultWSConfig(),
+				WSConfig:       wsinternal.DefaultWSConfig(),
 				RequestTimeout: 30 * time.Second,
 			},
 			wantErr: false,
@@ -64,12 +68,11 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestDefaultConfig(t *testing.T) {
-	apiKey := "test-key"
 	config := DefaultConfig()
-	config.APIKey = apiKey
+	config.APIKey = testKey
 
-	if config.APIKey != apiKey {
-		t.Errorf("DefaultConfig().APIKey = %v, want %v", config.APIKey, apiKey)
+	if config.APIKey != testKey {
+		t.Errorf("DefaultConfig().APIKey = %v, want %v", config.APIKey, testKey)
 	}
 
 	if config.WSConfig == nil {
@@ -132,7 +135,7 @@ func TestNewImageInferenceRequest(t *testing.T) {
 	width := 512
 	height := 512
 
-	req := NewImageInferenceRequest(testPrompt, model, width, height)
+	req := models.NewImageInferenceRequest(testPrompt, model, width, height)
 
 	if req.TaskType != "imageInference" {
 		t.Errorf("TaskType = %v, want imageInference", req.TaskType)
@@ -160,7 +163,7 @@ func TestNewImageInferenceRequest(t *testing.T) {
 }
 
 func TestNewUploadImageRequest(t *testing.T) {
-	req := NewUploadImageRequest()
+	req := models.NewUploadImageRequest()
 
 	if req.TaskType != "imageUpload" {
 		t.Errorf("TaskType = %v, want imageUpload", req.TaskType)
@@ -175,7 +178,7 @@ func TestNewUpscaleGanRequest(t *testing.T) {
 	inputImage := testUUID
 	factor := 4
 
-	req := NewUpscaleGanRequest(inputImage, factor)
+	req := models.NewUpscaleGanRequest(inputImage, factor)
 
 	if req.TaskType != "imageUpscale" {
 		t.Errorf("TaskType = %v, want imageUpscale", req.TaskType)
@@ -197,7 +200,7 @@ func TestNewUpscaleGanRequest(t *testing.T) {
 func TestNewRemoveImageBackgroundRequest(t *testing.T) {
 	inputImage := testUUID
 
-	req := NewRemoveImageBackgroundRequest(inputImage)
+	req := models.NewRemoveImageBackgroundRequest(inputImage)
 
 	if req.TaskType != "imageBackgroundRemoval" {
 		t.Errorf("TaskType = %v, want imageBackgroundRemoval", req.TaskType)
@@ -213,7 +216,7 @@ func TestNewRemoveImageBackgroundRequest(t *testing.T) {
 }
 
 func TestNewEnhancePromptRequest(t *testing.T) {
-	req := NewEnhancePromptRequest(testPrompt)
+	req := models.NewEnhancePromptRequest(testPrompt)
 
 	if req.TaskType != "promptEnhance" {
 		t.Errorf("TaskType = %v, want promptEnhance", req.TaskType)
@@ -231,7 +234,7 @@ func TestNewEnhancePromptRequest(t *testing.T) {
 func TestNewImageCaptionRequest(t *testing.T) {
 	inputImage := testUUID
 
-	req := NewImageCaptionRequest(inputImage)
+	req := models.NewImageCaptionRequest(inputImage)
 
 	if req.TaskType != "imageCaption" {
 		t.Errorf("TaskType = %v, want imageCaption", req.TaskType)
@@ -268,7 +271,7 @@ func TestImageInferenceWithoutConnection(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	req := NewImageInferenceRequest("test", "model", 512, 512)
+	req := models.NewImageInferenceRequest("test", "model", 512, 512)
 
 	_, err = client.ImageInference(ctx, req)
 	if err != ErrNotConnected {
@@ -277,7 +280,7 @@ func TestImageInferenceWithoutConnection(t *testing.T) {
 }
 
 func TestAPIError(t *testing.T) {
-	errResp := &ErrorResponse{
+	errResp := &models.ErrorResponse{
 		Error:    "Test error",
 		ErrorID:  "err-123",
 		TaskUUID: "task-456",
@@ -343,26 +346,26 @@ func TestExtractExpectedCount(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		req      *ImageInferenceRequest
+		req      *models.ImageInferenceRequest
 		expected int
 	}{
 		{
 			name: "nil numberResults defaults to 1",
-			req: &ImageInferenceRequest{
+			req: &models.ImageInferenceRequest{
 				NumberResults: nil,
 			},
 			expected: 1,
 		},
 		{
 			name: "numberResults = 4",
-			req: &ImageInferenceRequest{
+			req: &models.ImageInferenceRequest{
 				NumberResults: func() *int { n := 4; return &n }(),
 			},
 			expected: 4,
 		},
 		{
 			name: "numberResults = 1 explicitly",
-			req: &ImageInferenceRequest{
+			req: &models.ImageInferenceRequest{
 				NumberResults: func() *int { n := 1; return &n }(),
 			},
 			expected: 1,

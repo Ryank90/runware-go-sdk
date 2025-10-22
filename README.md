@@ -18,7 +18,8 @@ import (
     "fmt"
     "log"
     
-    runware "github.com/Ryank90/runware-go-sdk"
+    "github.com/Ryank90/runware-go-sdk"
+    "github.com/Ryank90/runware-go-sdk/models"
 )
 
 func main() {
@@ -66,14 +67,15 @@ client, err := runware.NewClient(nil)
 ### Custom Configuration
 
 ```go
+import (
+    "github.com/Ryank90/runware-go-sdk"
+    wsinternal "github.com/Ryank90/runware-go-sdk/internal/ws"
+)
+
 config := &runware.Config{
     APIKey: "your-api-key-here",
     RequestTimeout: 60 * time.Second,
-    WSConfig: &runware.WSConfig{
-        URL: runware.DefaultWSURL,
-        ConnectTimeout: 30 * time.Second,
-        EnableAutoReconnect: true,
-    },
+    WSConfig: wsinternal.DefaultWSConfig(),
 }
 
 client, err := runware.NewClient(config)
@@ -153,11 +155,13 @@ response, err := client.TextToImage(ctx, "a serene mountain landscape", "runware
 **Video Generation:**
 ```go
 // Build video request with custom settings
-req := runware.NewVideoRequestBuilder("ocean waves", "klingai:5@3").
-    WithDuration(5).
-    WithResolution(1920, 1080).
-    WithIncludeCost(true).
-    Build()
+req := models.NewVideoInferenceRequest("ocean waves", "klingai:5@3")
+duration := 5
+req.Duration = &duration
+width := 1920
+height := 1080
+req.Width = &width
+req.Height = &height
 
 // Submit request and poll for result
 videoResp, err := client.VideoInference(ctx, req)
@@ -167,10 +171,7 @@ finalResp, err := client.PollVideoResult(ctx, videoResp.TaskUUID, 120, 15*time.S
 **Audio Generation:**
 ```go
 // Build audio request with quality settings
-req := runware.NewAudioRequestBuilder("gentle piano melody", "elevenlabs:1@1", 10).
-    WithAudioSettings(44100, 192).
-    WithIncludeCost(true).
-    Build()
+req := models.NewAudioInferenceRequest("gentle piano melody", "elevenlabs:1@1", 10)
 
 // Submit request and poll for result
 audioResp, err := client.AudioInference(ctx, req)

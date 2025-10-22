@@ -6,6 +6,7 @@ import (
 	"log"
 
 	runware "github.com/Ryank90/runware-go-sdk"
+	models "github.com/Ryank90/runware-go-sdk/models"
 	"github.com/joho/godotenv"
 )
 
@@ -34,9 +35,9 @@ func main() {
 		"a steampunk airship flying through clouds",
 	}
 
-	requests := make([]*runware.ImageInferenceRequest, len(prompts))
+	requests := make([]*models.ImageInferenceRequest, len(prompts))
 	for i, prompt := range prompts {
-		requests[i] = runware.NewImageInferenceRequest(prompt, "runware:101@1", 1024, 1024)
+		requests[i] = models.NewImageInferenceRequest(prompt, "runware:101@1", 1024, 1024)
 		includeCost := true
 		requests[i].IncludeCost = &includeCost
 	}

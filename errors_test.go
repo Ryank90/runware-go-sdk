@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Ryank90/runware-go-sdk/models"
 )
 
 func TestErrorConstants(t *testing.T) {
@@ -71,7 +73,7 @@ func TestAPIErrorError(t *testing.T) {
 }
 
 func TestNewAPIError(t *testing.T) {
-	errResp := &ErrorResponse{
+	errResp := &models.ErrorResponse{
 		Error:    "Test error message",
 		ErrorID:  "err-789",
 		TaskUUID: "task-101",
@@ -141,12 +143,12 @@ func TestAPIErrorWrapping(t *testing.T) {
 func TestAPIErrorEnhanced(t *testing.T) {
 	tests := []struct {
 		name     string
-		errResp  *ErrorResponse
+		errResp  *models.ErrorResponse
 		contains []string
 	}{
 		{
 			name: "full error details",
-			errResp: &ErrorResponse{
+			errResp: &models.ErrorResponse{
 				Error:    "unsupported dimensions",
 				ErrorID:  "ERR001",
 				TaskUUID: "task-123",
@@ -161,7 +163,7 @@ func TestAPIErrorEnhanced(t *testing.T) {
 		},
 		{
 			name: "empty message shows raw response",
-			errResp: &ErrorResponse{
+			errResp: &models.ErrorResponse{
 				Error:    "",
 				ErrorID:  "ERR002",
 				TaskUUID: "task-456",
@@ -175,7 +177,7 @@ func TestAPIErrorEnhanced(t *testing.T) {
 		},
 		{
 			name: "alternative error format (code and message fields)",
-			errResp: &ErrorResponse{
+			errResp: &models.ErrorResponse{
 				Message:  "rate limit exceeded",
 				Code:     "RATE_LIMIT",
 				TaskUUID: "task-789",
