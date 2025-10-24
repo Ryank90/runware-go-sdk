@@ -6,6 +6,7 @@ import (
 	"log"
 
 	runware "github.com/Ryank90/runware-go-sdk"
+	models "github.com/Ryank90/runware-go-sdk/models"
 	"github.com/joho/godotenv"
 )
 
@@ -28,7 +29,7 @@ func main() {
 
 	// Example 1: Enhance a prompt
 	fmt.Println("\n=== Prompt Enhancement ===")
-	enhanceReq := runware.NewEnhancePromptRequest("a beautiful sunset")
+	enhanceReq := models.NewEnhancePromptRequest("a beautiful sunset")
 	maxLen := 100
 	enhanceReq.PromptMaxLength = &maxLen
 	enhanceResp, err := client.EnhancePrompt(ctx, enhanceReq)
@@ -56,7 +57,7 @@ func main() {
 
 			// Example 3: Remove background
 			fmt.Println("\n=== Background Removal ===")
-			bgRemovalReq := runware.NewRemoveImageBackgroundRequest(imageURL)
+			bgRemovalReq := models.NewRemoveImageBackgroundRequest(imageURL)
 			includeCost := true
 			bgRemovalReq.IncludeCost = &includeCost
 
@@ -72,7 +73,7 @@ func main() {
 
 			// Example 4: Upscale image
 			fmt.Println("\n=== Image Upscaling ===")
-			upscaleReq := runware.NewUpscaleGanRequest(imageURL, 4)
+			upscaleReq := models.NewUpscaleGanRequest(imageURL, 4)
 			upscaleReq.IncludeCost = &includeCost
 
 			upscaleResp, err := client.UpscaleImage(ctx, upscaleReq)
@@ -87,7 +88,7 @@ func main() {
 
 			// Example 5: Caption image
 			fmt.Println("\n=== Image Captioning ===")
-			captionReq := runware.NewImageCaptionRequest(imageURL)
+			captionReq := models.NewImageCaptionRequest(imageURL)
 			captionResp, err := client.CaptionImage(ctx, captionReq)
 			if err != nil {
 				log.Printf("Failed to caption image: %v", err)

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	runware "github.com/Ryank90/runware-go-sdk"
+	models "github.com/Ryank90/runware-go-sdk/models"
 	"github.com/joho/godotenv"
 )
 
@@ -34,7 +35,7 @@ func main() {
 		"A busy city street with cars and people, time-lapse style",
 	}
 
-	requests := make([]*runware.VideoInferenceRequest, len(prompts))
+	requests := make([]*models.VideoInferenceRequest, len(prompts))
 	for i, prompt := range prompts {
 		// Use OpenAI Sora for cost efficiency; requires 1280x720 and durations 4/8/12
 		requests[i] = runware.NewVideoRequestBuilder(prompt, "openai:3@1").
@@ -56,10 +57,10 @@ func main() {
 	fmt.Println("This will take several minutes...")
 
 	// Poll for each result concurrently to minimize wall time
-	finalResponses := make([]*runware.VideoInferenceResponse, len(responses))
+	finalResponses := make([]*models.VideoInferenceResponse, len(responses))
 	type idxResp struct {
 		idx  int
-		resp *runware.VideoInferenceResponse
+		resp *models.VideoInferenceResponse
 		err  error
 	}
 	resultCh := make(chan idxResp, len(responses))

@@ -18,7 +18,8 @@ import (
     "fmt"
     "log"
     
-    runware "github.com/Ryank90/runware-go-sdk"
+    "github.com/Ryank90/runware-go-sdk"
+    "github.com/Ryank90/runware-go-sdk/models"
 )
 
 func main() {
@@ -66,14 +67,15 @@ client, err := runware.NewClient(nil)
 ### Custom Configuration
 
 ```go
+import (
+    "github.com/Ryank90/runware-go-sdk"
+    wsinternal "github.com/Ryank90/runware-go-sdk/internal/ws"
+)
+
 config := &runware.Config{
     APIKey: "your-api-key-here",
     RequestTimeout: 60 * time.Second,
-    WSConfig: &runware.WSConfig{
-        URL: runware.DefaultWSURL,
-        ConnectTimeout: 30 * time.Second,
-        EnableAutoReconnect: true,
-    },
+    WSConfig: wsinternal.DefaultWSConfig(),
 }
 
 client, err := runware.NewClient(config)
@@ -120,64 +122,7 @@ client, _ := runware.NewClient(config)
 
 ## Usage Examples
 
-See the [`examples/`](./examples) directory for complete, working examples:
-
-**Image Generation:**
-- [Text to Image](./examples/text_to_image) - Simple image generation
-- [Advanced Generation](./examples/advanced_generation) - Using the builder pattern with advanced options
-- [Image Transformation](./examples/image_transformation) - Transform existing images
-- [Batch Generation](./examples/batch_generation) - Generate multiple images in parallel
-- [ControlNet](./examples/controlnet) - Guided generation with ControlNet
-- [Utilities](./examples/utilities) - Upscaling, background removal, captioning, etc.
-
-**Video Generation:**
-- [Text to Video](./examples/text_to_video) - Generate videos from text with async polling
-- [Image to Video](./examples/image_to_video) - Animate images into videos
-- [Advanced Video](./examples/advanced_video) - Provider settings and advanced controls
-- [Video with Constraints](./examples/video_with_constraints) - Frame-by-frame constraints
-- [Batch Video](./examples/batch_video) - Generate multiple videos in parallel
-
-**Audio Generation:**
-- [Text to Audio](./examples/text_to_audio) - Generate audio from text with async polling
-
-### Quick Examples
-
-All examples are in the [`examples/`](./examples) directory with complete, working code.
-
-**Image Generation:**
-```go
-// Simple text-to-image
-response, err := client.TextToImage(ctx, "a serene mountain landscape", "runware:101@1", 1024, 1024)
-```
-
-**Video Generation:**
-```go
-// Build video request with custom settings
-req := runware.NewVideoRequestBuilder("ocean waves", "klingai:5@3").
-    WithDuration(5).
-    WithResolution(1920, 1080).
-    WithIncludeCost(true).
-    Build()
-
-// Submit request and poll for result
-videoResp, err := client.VideoInference(ctx, req)
-finalResp, err := client.PollVideoResult(ctx, videoResp.TaskUUID, 120, 15*time.Second)
-```
-
-**Audio Generation:**
-```go
-// Build audio request with quality settings
-req := runware.NewAudioRequestBuilder("gentle piano melody", "elevenlabs:1@1", 10).
-    WithAudioSettings(44100, 192).
-    WithIncludeCost(true).
-    Build()
-
-// Submit request and poll for result
-audioResp, err := client.AudioInference(ctx, req)
-finalResp, err := client.PollAudioResult(ctx, audioResp.TaskUUID, 60, 5*time.Second)
-```
-
-For complete working examples, see the [examples directory](./examples).
+See the [`examples/`](./examples) directory for complete, working examples.
 
 ## Models
 

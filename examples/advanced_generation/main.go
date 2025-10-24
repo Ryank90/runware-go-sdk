@@ -8,6 +8,7 @@ import (
 	"time"
 
 	runware "github.com/Ryank90/runware-go-sdk"
+	models "github.com/Ryank90/runware-go-sdk/models"
 	"github.com/joho/godotenv"
 )
 
@@ -35,8 +36,8 @@ func main() {
 
 	// Build a request with advanced features
 	// Using single-result generation for reliability with advanced settings
-	outputType := runware.OutputTypeURL
-	outputFormat := runware.OutputFormatPNG
+	outputType := models.OutputTypeURL
+	outputFormat := models.OutputFormatPNG
 
 	request := runware.NewRequestBuilder(
 		"a highly detailed portrait of a wise old wizard with a long beard, fantasy art, dramatic lighting",

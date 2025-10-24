@@ -1,4 +1,4 @@
-package runware
+package models
 
 import (
 	"encoding/json"
