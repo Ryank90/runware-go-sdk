@@ -1,6 +1,6 @@
 module github.com/Ryank90/runware-go-sdk
 
-go 1.21
+go 1.23.0
 
 require (
 	github.com/google/uuid v1.6.0
@@ -8,4 +8,4 @@ require (
 	github.com/joho/godotenv v1.5.1
 )
 
-require golang.org/x/net v0.17.0 // indirect
+require golang.org/x/net v0.38.0 // indirect
